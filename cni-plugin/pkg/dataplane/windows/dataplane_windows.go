@@ -181,7 +181,7 @@ func (d *windowsDataplane) DoNetworking(
 	}
 	defer m.Release()
 
-	logrus.Infof("windows::DoNetworking: WindowsUseSingleNetwork: %v", d.conf.WindowsUseSingleNetwork)
+	d.logger.Infof("windows::DoNetworking: WindowsUseSingleNetwork: %v", d.conf.WindowsUseSingleNetwork)
 
 	// Create hns network
 	var networkName string
@@ -190,7 +190,7 @@ func (d *windowsDataplane) DoNetworking(
 			"Overriding network name, only a single IPAM block will be supported on this host")
 		networkName = d.conf.Name
 	} else {
-		logrus.Infof("windows::DoNetworking: Creating network %s", n.Name)
+		d.logger.Infof("windows::DoNetworking: Creating network %s", n.Name)
 		networkName = CreateNetworkName(n.Name, subNet)
 	}
 
@@ -876,8 +876,8 @@ func (d *windowsDataplane) createAndAttachContainerEP(args *skel.CmdArgs,
 			}
 		} else {
 			d.logger.Infof("Attempting to create HostComputeEndpoint: %s for container", endpointName)
-			d.logger.infof("windows::createAndAttachContainerEP HostComputeNetwork ID: %s", hnsNetwork.Id)
-			d.logger.infof("windows::createAndAttachContainerEP { MacAddress: %s, Gateway: %s }", macAddr, gatewayAddress)
+			d.logger.Infof("windows::createAndAttachContainerEP HostComputeNetwork ID: %s", hnsNetwork.Id)
+			d.logger.Infof("windows::createAndAttachContainerEP { MacAddress: %s, Gateway: %s }", macAddr, gatewayAddress)
 
 			hcsEndpoint, err = hns.AddHcnEndpoint(endpointName, hnsNetwork.Id, args.Netns, func() (*hcn.HostComputeEndpoint, error) {
 				hce := &hcn.HostComputeEndpoint{
