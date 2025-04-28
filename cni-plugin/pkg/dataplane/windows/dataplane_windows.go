@@ -113,6 +113,7 @@ func SetupL2bridgeNetwork(networkName string, subNet *net.IPNet, logger *logrus.
 }
 
 func SetupVxlanNetwork(networkName string, subNet *net.IPNet, vni uint64, logger *logrus.Entry) (*hcsshim.HNSNetwork, error) {
+	logrus.Infof("windows::SetupVxlanNetwork: Creating Vxlan network %s with vni %d", networkName, vni)
 	hnsNetwork, err := ensureVxlanNetworkExists(networkName, subNet, vni, logger)
 	if err != nil {
 		logger.Errorf("Unable to create hns network %s", networkName)
@@ -180,6 +181,8 @@ func (d *windowsDataplane) DoNetworking(
 	}
 	defer m.Release()
 
+	logrus.Infof("windows::DoNetworking: WindowsUseSingleNetwork: %v", d.conf.WindowsUseSingleNetwork)
+
 	// Create hns network
 	var networkName string
 	if d.conf.WindowsUseSingleNetwork {
@@ -187,6 +190,7 @@ func (d *windowsDataplane) DoNetworking(
 			"Overriding network name, only a single IPAM block will be supported on this host")
 		networkName = d.conf.Name
 	} else {
+		logrus.Infof("windows::DoNetworking: Creating network %s", n.Name)
 		networkName = CreateNetworkName(n.Name, subNet)
 	}
 
@@ -315,9 +319,21 @@ func ensureVxlanNetworkExists(networkName string, subNet *net.IPNet, vni uint64,
 		expectedVNI = vni
 	}
 
+	logrus.Infof("windows::ensureVxlanNetworkExists: NetworkName: %s", networkName)
+
+	// List all HNS networks
+	hnsNetworks, err := hcsshim.HNSNetworkRequest("GET", "", "")
+	if err != nil {
+		logger.Errorf("Unable to list HNS networks, error: %v", err)
+	}
+	logrus.Infof("windows::ensureVxlanNetworkExists: HNS networks: %+v", hnsNetworks)
+
 	// Checking if HNS network exists
 	existingNetwork, _ := hcsshim.GetHNSNetworkByName(networkName)
 	if existingNetwork != nil {
+		logrus.Infof("windows::ensureVxlanNetworkExists: Found existing HNS network [%+v]", existingNetwork)
+		logrus.Infof("windows::ensureVxlanNetworkExists: Existing network name: %s", existingNetwork.Name)
+		logrus.Infof("windows::ensureVxlanNetworkExists: Existing network type: %s", existingNetwork.Type)
 		if existingNetwork.Type == expectedNetwork.Type {
 			for _, subnet := range existingNetwork.Subnets {
 				if subnet.AddressPrefix == expectedAddressPrefix && subnet.GatewayAddress == expectedGW.String() {
@@ -329,6 +345,8 @@ func ensureVxlanNetworkExists(networkName string, subNet *net.IPNet, vni uint64,
 		}
 	}
 
+	logrus.Infof("windows::ensureVxlanNetworkExists: Create network: %v", createNetwork)
+
 	if createNetwork {
 		// Delete stale network
 		if existingNetwork != nil {
@@ -336,7 +354,7 @@ func ensureVxlanNetworkExists(networkName string, subNet *net.IPNet, vni uint64,
 				logger.Errorf("Unable to delete existing network [%v], error: %v", existingNetwork.Name, err)
 				return nil, err
 			}
-			logger.Infof("Deleted stale HNS network [%v]")
+			logger.Infof("Deleted stale HNS network [%v]", existingNetwork)
 		}
 
 		// Add a VxLan subnet
@@ -370,6 +388,8 @@ func ensureVxlanNetworkExists(networkName string, subNet *net.IPNet, vni uint64,
 		if waitErr == wait.ErrWaitTimeout {
 			return nil, errors.Annotatef(lastErr, "timeout, failed to get management IP from HNSNetwork %s", networkName)
 		}
+		logrus.Infof("windows::ensureVxlanNetworkExists: Management IP %s", newNetwork.ManagementIP)
+		logrus.Infof("windows::ensureVxlanNetworkExists: New network: %+v", newNetwork)
 
 		// Wait for the interface with the management IP
 		logger.Infof("Waiting to get net interface for HNSNetwork %s (%s)", networkName, newNetwork.ManagementIP)
@@ -420,11 +440,25 @@ func EnsureNetworkExists(networkName string, subNet *net.IPNet, logger *logrus.E
 	createNetwork := true
 	addressPrefix := subNet.String()
 	gatewayAddress := getNthIP(subNet, 1)
+}
+	logrus.Infof("windows::EnsureNetworkExists: Network name: %s", networkName)
+
+	// List all HNS networks
+	hnsNetworks, err := hcsshim.HNSNetworkRequest("GET", "", "")
+	if err != nil {
+		logger.Errorf("Unable to list HNS networks, error: %v", err)
+	}
+	logrus.Infof("windows::EnsureNetworkExists: HNS networks: %+v", hnsNetworks)
 
 	// Checking if HNS network exists
 	hnsNetwork, _ := hcsshim.GetHNSNetworkByName(networkName)
 	if hnsNetwork != nil {
+		logrus.Infof("windows::EnsureNetworkExists: Found existing HNS network [%+v]", existingNetwork)
+		logrus.Infof("windows::EnsureNetworkExists: Existing network name: %s", existingNetwork.Name)
+		logrus.Infof("windows::EnsureNetworkExists: Existing network type: %s", existingNetwork.Type)
+		if existingNetwork.Type == expectedNetwork.Type {
 		for _, subnet := range hnsNetwork.Subnets {
+			// QUESTION: Why are we not compairing the type of network?
 			if subnet.AddressPrefix == addressPrefix && subnet.GatewayAddress == gatewayAddress.String() {
 				createNetwork = false
 				logger.Infof("Found existing HNS network [%+v]", hnsNetwork)
@@ -433,6 +467,8 @@ func EnsureNetworkExists(networkName string, subNet *net.IPNet, logger *logrus.E
 		}
 	}
 
+	logrus.Infof("windows::EnsureNetworkExists: Create network: %+v", createNetwork)
+
 	if createNetwork {
 		// Delete stale network
 		if hnsNetwork != nil {
@@ -440,7 +476,7 @@ func EnsureNetworkExists(networkName string, subNet *net.IPNet, logger *logrus.E
 				logger.Errorf("Unable to delete existing network [%v], error: %v", hnsNetwork.Name, err)
 				return nil, err
 			}
-			logger.Infof("Deleted stale HNS network [%v]")
+			logger.Infof("Deleted stale HNS network [%v]", hnsNetwork)
 		}
 
 		// Create new hnsNetwork
@@ -467,6 +503,8 @@ func EnsureNetworkExists(networkName string, subNet *net.IPNet, logger *logrus.E
 			return nil, err
 		}
 		logger.Infof("Created HNS network [%v] as %+v", networkName, hnsNetwork)
+		logrus.Infof("windows::EnsureNetworkExists: Management IP %s", hnsNetwork.ManagementIP)
+		logrus.Infof("windows::EnsureNetworkExists: New network: %+v", hnsNetwork)
 	}
 	return hnsNetwork, err
 }
@@ -510,6 +548,7 @@ func createAndAttachVxlanHostEP(epName string, hnsNetwork *hcsshim.HNSNetwork, s
 	endpointAddress := getNthIP(subNet, 2)
 
 	// 1. Check if the HNSEndpoint exists and has the expected settings
+	logrus.Infof("windows::createAndAttachVxlanHostEP: Checking for existing HNSEndpoint %s", epName)
 	existingEndpoint, err := hcsshim.GetHNSEndpointByName(epName)
 	if err == nil && existingEndpoint.VirtualNetwork == hnsNetwork.Id {
 		// Check policies if there is PA type
@@ -526,15 +565,21 @@ func createAndAttachVxlanHostEP(epName string, hnsNetwork *hcsshim.HNSNetwork, s
 		}
 	}
 
+	logrus.Infof("windows::createAndAttachVxlanHostEP: Found existing HNSEndpoint [%+v]", existingEndpoint)
+
 	// 2. Create a new HNSNetwork
 	if existingEndpoint != nil {
+		logger.Warningf("windows::createAndAttachVxlanHostEP: Deleting existing HNSEndpoint [%+v]", existingEndpoint)
 		if _, err := existingEndpoint.Delete(); err != nil {
+			logrus.Errorf("Unable to delete existing remote HNSEndpoint [%v], error: %v", epName, err)
 			return nil, errors.Annotatef(err, "failed to delete existing remote HNSEndpoint %s", epName)
 		}
 		logger.Infof("Deleted stale HNSEndpoint %s", epName)
 	}
 
 	macAddr := GetMacAddr(hnsNetwork.ManagementIP)
+
+	logrus.Infof("windows::createAndAttachVxlanHostEP: MAC Address: %s", macAddr)
 
 	newEndpoint := &hcsshim.HNSEndpoint{
 		Name:             epName,
@@ -546,10 +591,13 @@ func createAndAttachVxlanHostEP(epName string, hnsNetwork *hcsshim.HNSNetwork, s
 			[]byte(fmt.Sprintf(`{"Type":"PA","PA":"%s"}`, hnsNetwork.ManagementIP)),
 		},
 	}
+	logger.Infof("Attempting to create remote HNSEndpoint [%+v]", newEndpoint)
 	if _, err := newEndpoint.Create(); err != nil {
 		return nil, errors.Annotatef(err, "failed to create remote HNSEndpoint %s", epName)
 	}
 	logger.Infof("Created HNSEndpoint %s", epName)
+
+	logrus.Infof("windows::createAndAttachVxlanHostEP: New endpoint [%+v]", newEndpoint)
 
 	return newEndpoint, nil
 }
@@ -690,6 +738,7 @@ func (d *windowsDataplane) createAndAttachContainerEP(args *skel.CmdArgs,
 	} else {
 		gatewayAddress = getNthIP(affineBlockSubnet, 2).String()
 	}
+	logrus.Infof("windows::createAndAttachContainerEP: GatewayAddress %s", gatewayAddress)
 
 	natExclusions := allIPAMPools
 
@@ -698,6 +747,7 @@ func (d *windowsDataplane) createAndAttachContainerEP(args *skel.CmdArgs,
 		// We just checked the management IP so we shouldn't lose it again.
 		return nil, nil, fmt.Errorf("HNS network lost its management IP")
 	}
+	logrus.Infof("windows::createAndAttachContainerEP: ManagementIP %s", mgmtIP.String())
 
 	v1pols, v2pols, err := winpol.CalculateEndpointPolicies(n, natExclusions, natOutgoing, mgmtIP, d.logger)
 	if err != nil {
@@ -818,6 +868,8 @@ func (d *windowsDataplane) createAndAttachContainerEP(args *skel.CmdArgs,
 			}
 		} else {
 			d.logger.Infof("Attempting to create HostComputeEndpoint: %s for container", endpointName)
+			d.logger.infof("windows::createAndAttachContainerEP HostComputeNetwork ID: %s", hnsNetwork.Id)
+			d.logger.infof("windows::createAndAttachContainerEP { MacAddress: %s, Gateway: %s }", macAddr, gatewayAddress)
 
 			hcsEndpoint, err = hns.AddHcnEndpoint(endpointName, hnsNetwork.Id, args.Netns, func() (*hcn.HostComputeEndpoint, error) {
 				hce := &hcn.HostComputeEndpoint{
@@ -852,6 +904,7 @@ func (d *windowsDataplane) createAndAttachContainerEP(args *skel.CmdArgs,
 			if err == nil {
 				d.logger.Infof("Endpoint to container created! %v", hcsEndpoint)
 			}
+			logrus.Infof("windows::createAndAttachContainerEP: HostComputeEndpoint: %+v", hcsEndpoint)
 		}
 
 		if err != nil {
