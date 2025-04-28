@@ -440,46 +440,53 @@ func EnsureNetworkExists(networkName string, subNet *net.IPNet, logger *logrus.E
 	createNetwork := true
 	addressPrefix := subNet.String()
 	gatewayAddress := getNthIP(subNet, 1)
-}
-	logrus.Infof("windows::EnsureNetworkExists: Network name: %s", networkName)
+
+	logger.Infof("windows::EnsureNetworkExists: Network name: %s", networkName)
 
 	// List all HNS networks
 	hnsNetworks, err := hcsshim.HNSNetworkRequest("GET", "", "")
 	if err != nil {
 		logger.Errorf("Unable to list HNS networks, error: %v", err)
 	}
-	logrus.Infof("windows::EnsureNetworkExists: HNS networks: %+v", hnsNetworks)
+	logger.Infof("windows::EnsureNetworkExists: HNS networks: %+v", hnsNetworks)
 
 	// Checking if HNS network exists
-	hnsNetwork, _ := hcsshim.GetHNSNetworkByName(networkName)
+	hnsNetwork, err := hcsshim.GetHNSNetworkByName(networkName)
+	if err != nil {
+		logger.Errorf("Failed to get HNS network by name %s, error: %v", networkName, err)
+		return nil, err
+	}
+
 	if hnsNetwork != nil {
-		logrus.Infof("windows::EnsureNetworkExists: Found existing HNS network [%+v]", existingNetwork)
-		logrus.Infof("windows::EnsureNetworkExists: Existing network name: %s", existingNetwork.Name)
-		logrus.Infof("windows::EnsureNetworkExists: Existing network type: %s", existingNetwork.Type)
-		if existingNetwork.Type == expectedNetwork.Type {
-		for _, subnet := range hnsNetwork.Subnets {
-			// QUESTION: Why are we not compairing the type of network?
-			if subnet.AddressPrefix == addressPrefix && subnet.GatewayAddress == gatewayAddress.String() {
-				createNetwork = false
-				logger.Infof("Found existing HNS network [%+v]", hnsNetwork)
-				break
+		logger.Infof("windows::EnsureNetworkExists: Found existing HNS network: %+v", hnsNetwork)
+		logger.Infof("windows::EnsureNetworkExists: Existing network name: %s", hnsNetwork.Name)
+		logger.Infof("windows::EnsureNetworkExists: Existing network type: %s", hnsNetwork.Type)
+
+		if hnsNetwork.Type == "L2Bridge" {
+			for _, subnet := range hnsNetwork.Subnets {
+				// QUESTION: Why are we not compairing the type of network?
+				if subnet.AddressPrefix == addressPrefix && subnet.GatewayAddress == gatewayAddress.String() {
+					createNetwork = false
+					logger.Infof("Found matching existing HNS network: %+v", hnsNetwork)
+					break
+				}
 			}
 		}
 	}
 
-	logrus.Infof("windows::EnsureNetworkExists: Create network: %+v", createNetwork)
+	logger.Infof("windows::EnsureNetworkExists: Create network: %v", createNetwork)
 
 	if createNetwork {
 		// Delete stale network
 		if hnsNetwork != nil {
 			if _, err := hnsNetwork.Delete(); err != nil {
-				logger.Errorf("Unable to delete existing network [%v], error: %v", hnsNetwork.Name, err)
+				logger.Errorf("Unable to delete existing network %s, error: %v", hnsNetwork.Name, err)
 				return nil, err
 			}
-			logger.Infof("Deleted stale HNS network [%v]", hnsNetwork)
+			logger.Infof("Deleted stale HNS network [%+v]", hnsNetwork)
 		}
 
-		// Create new hnsNetwork
+		// Create new HNS network
 		req := map[string]interface{}{
 			"Name": networkName,
 			"Type": "L2Bridge",
@@ -493,20 +500,21 @@ func EnsureNetworkExists(networkName string, subNet *net.IPNet, logger *logrus.E
 
 		reqStr, err := json.Marshal(req)
 		if err != nil {
-			logger.Errorf("Error in converting to json format")
+			logger.Errorf("Error converting network request to JSON, error: %v", err)
 			return nil, err
 		}
 
-		logger.Infof("Attempting to create HNS network, request: %v", string(reqStr))
-		if hnsNetwork, err = hcsshim.HNSNetworkRequest("POST", "", string(reqStr)); err != nil {
-			logger.Errorf("unable to create network [%v], error: %v", networkName, err)
+		logger.Infof("Attempting to create HNS network, request: %s", string(reqStr))
+		hnsNetwork, err = hcsshim.HNSNetworkRequest("POST", "", string(reqStr))
+		if err != nil {
+			logger.Errorf("Unable to create network %s, error: %v", networkName, err)
 			return nil, err
 		}
-		logger.Infof("Created HNS network [%v] as %+v", networkName, hnsNetwork)
-		logrus.Infof("windows::EnsureNetworkExists: Management IP %s", hnsNetwork.ManagementIP)
-		logrus.Infof("windows::EnsureNetworkExists: New network: %+v", hnsNetwork)
+		logger.Infof("Created HNS network %s: %+v", networkName, hnsNetwork)
+		logger.Infof("windows::EnsureNetworkExists: Management IP: %s", hnsNetwork.ManagementIP)
 	}
-	return hnsNetwork, err
+
+	return hnsNetwork, nil
 }
 
 func EnsureVXLANTunnelAddr(ctx context.Context, calicoClient calicoclient.Interface, nodeName string, ipNet *net.IPNet, networkName string) error {
