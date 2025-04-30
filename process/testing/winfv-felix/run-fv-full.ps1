@@ -8,6 +8,19 @@ Param(
     [parameter(Mandatory = $false)] $WinFvExecutable="win-fv.exe"
 )
 
+
+Write-Host "Running Windows FV full test with the following parameters:"
+$params = @{
+    LinuxPIP         = $LinuxPIP
+    KubeVersion      = $KubeVersion
+    OSVersion        = $OSVersion
+    ContainerRuntime = $ContainerRuntime
+    FVType           = $FVType
+    Provisioner      = $Provisioner
+    WinFvExecutable  = $WinFvExecutable
+}
+$params | Write-Output
+
 $Root="c:\\CalicoWindows"
 
 if ($Provisioner -eq "capz") {

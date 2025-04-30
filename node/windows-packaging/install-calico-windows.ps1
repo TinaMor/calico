@@ -413,6 +413,7 @@ $CalicoZip="$env:CONTAINER_SANDBOX_MOUNT_POINT\calico-windows.zip"
 } else {
 $CalicoZip="c:\calico-windows.zip"
 }
+Write-Host "Calico for Windows archive: $CalicoZip"
 
 # Must load the helper modules before doing anything else.
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -432,7 +433,7 @@ ipmo -force -DisableNameChecking $helperv2
 
 if (!(Test-Path $CalicoZip))
 {
-    Write-Host "$CalicoZip not found, downloading Calico for Windows release..."
+    Write-Host "$CalicoZip not found, downloading Calico for Windows release...`n`t'$ReleaseBaseURL/$ReleaseFile'"
     DownloadFile -Url $ReleaseBaseURL/$ReleaseFile -Destination c:\calico-windows.zip
 }
 
@@ -444,8 +445,9 @@ if ((Get-Service -exclude 'CalicoUpgrade' | where Name -Like 'Calico*' | where S
 }
 
 Remove-Item $RootDir -Force  -Recurse -ErrorAction SilentlyContinue
-Write-Host "Unzip Calico for Windows release..."
+Write-Host "Unzip Calico for Windows release...`n`tto C:\"
 Expand-Archive -Force $CalicoZip c:\
+Write-Host "Importing helper modules...`n`t$RootDir\libs\calico\calico.psm1"
 ipmo -force $RootDir\libs\calico\calico.psm1
 
 # This comes after we import calico.psm1

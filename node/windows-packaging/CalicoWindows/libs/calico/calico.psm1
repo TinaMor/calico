@@ -190,7 +190,7 @@ function Remove-CNIPlugin()
 
 function Install-NodeService()
 {
-    Write-Host "Installing node startup service..."
+    Write-Host "Installing Calico node startup service..."
 
     ensureRegistryKey
 
@@ -217,6 +217,7 @@ function Install-NodeService()
         write "Creating log directory."
         md -Path "$env:CALICO_LOG_DIR"
     }
+    Write-Host "Setting log directory to '$env:CALICO_LOG_DIR'"
     & $NSSMPath set CalicoNode AppStdout $env:CALICO_LOG_DIR\calico-node.log
     & $NSSMPath set CalicoNode AppStderr $env:CALICO_LOG_DIR\calico-node.err.log
 

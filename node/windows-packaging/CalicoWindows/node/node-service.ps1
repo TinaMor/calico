@@ -56,6 +56,7 @@ Write-Host "StoredLastBootTime $Stored, CurrentLastBootTime $lastBootTime"
 
 $timeout = $env:STARTUP_VALID_IP_TIMEOUT
 $vxlanAdapter = $env:VXLAN_ADAPTER
+Write-Host "VXLAN adapter: $vxlanAdapter"
 
 # Autoconfigure the IPAM block mode.
 if ($env:CNI_IPAM_TYPE -EQ "host-local") {
@@ -115,10 +116,12 @@ if ($env:CALICO_NETWORKING_BACKEND -EQ "windows-bgp" -OR $env:CALICO_NETWORKING_
 
     # Create a bridge to trigger a vSwitch creation. Do this only once
     Write-Host "`nStart creating vSwitch. Note: Connection may get lost for RDP, please reconnect...`n"
-    while (!(Get-HnsNetwork | ? Name -EQ "External"))
+    $ExternalNet = Get-HNSNetwork | ? Name -EQ "External"
+    while (!($ExternalNet))
     {
         if ($env:CALICO_NETWORKING_BACKEND -EQ "vxlan") {
             # FIXME Firewall rule port?
+            Write-Host "Creating overlay network for VXLAN: '$vxlanAdapter'"
             New-NetFirewallRule -Name OverlayTraffic4789UDP -Description "Overlay network traffic UDP" -Action Allow -LocalPort 4789 -Enabled True -DisplayName "Overlay Traffic 4789 UDP" -Protocol UDP -ErrorAction SilentlyContinue
             $result = New-HNSNetwork -Type Overlay -AddressPrefix "192.168.255.0/30" -Gateway "192.168.255.1" -Name "External" -SubnetPolicies @(@{Type = "VSID"; VSID = 9999; }) -AdapterName $vxlanAdapter -Verbose
         }
@@ -132,7 +135,22 @@ if ($env:CALICO_NETWORKING_BACKEND -EQ "windows-bgp" -OR $env:CALICO_NETWORKING_
         } else {
             break
         }
+        $ExternalNet = Get-HNSNetwork | ? Name -EQ "External"
     }
+
+    # Get all endpoints for Calico
+    $endpoints = Get-HnsEndpoint
+    $endpoints | Format-List
+
+    # Get all adapters created for containers when the pod is created
+    $adapters = Get-NetAdapter -IncludeHidden | Select-Object Name, InterfaceDescription, Status, ifIndex, InterfaceName, InterfaceType, InterfaceGuid, MacAddress, DeviceID, InterfaceAlias | Sort-Object InterfaceDescription, Name
+    $adapters | Format-List
+
+    # Get the net interfaces
+    $interfaces = Get-NetIPInterface -AddressFamily IPv4 -IncludeAllCompartments | Sort-Object ifIndex | Select-Object ifIndex, InterfaceAlias, Dhcp, ConnectionState, InterfaceMetric, AutomaticMetric
+    $interfaces | Format-List
+
+    ipconfig /all
 
     # Wait for the management IP to show up and then give an extra grace period for
     # the networking stack to settle down.
