@@ -330,6 +330,7 @@ func ensureVxlanNetworkExists(networkName string, subNet *net.IPNet, vni uint64,
 
 	// Checking if HNS network exists
 	existingNetwork, _ := hcsshim.GetHNSNetworkByName(networkName)
+	logger.WithField("network", existingNetwork).Debug("Checking for existing HNS network")
 	if existingNetwork != nil {
 		logrus.Infof("windows::ensureVxlanNetworkExists: Found existing HNS network [%+v]", existingNetwork)
 		logrus.Infof("windows::ensureVxlanNetworkExists: Existing network name: %s", existingNetwork.Name)
