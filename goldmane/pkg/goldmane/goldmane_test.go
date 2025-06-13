@@ -19,7 +19,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	. "github.com/onsi/gomega"
 	"github.com/sirupsen/logrus"
@@ -29,9 +28,11 @@ import (
 	"github.com/projectcalico/calico/goldmane/pkg/goldmane"
 	"github.com/projectcalico/calico/goldmane/pkg/internal/utils"
 	"github.com/projectcalico/calico/goldmane/pkg/storage"
+	"github.com/projectcalico/calico/goldmane/pkg/stream"
 	"github.com/projectcalico/calico/goldmane/pkg/testutils"
 	"github.com/projectcalico/calico/goldmane/pkg/types"
 	"github.com/projectcalico/calico/goldmane/proto"
+	"github.com/projectcalico/calico/lib/std/time"
 	"github.com/projectcalico/calico/libcalico-go/lib/logutils"
 )
 
@@ -84,8 +85,8 @@ func TestList(t *testing.T) {
 	}
 	defer setupTest(t, opts...)()
 
-	// Start the goldmane.
-	go gm.Run(now)
+	// Start goldmane.
+	<-gm.Run(now)
 
 	// Ingest a flow log.
 	fl := &proto.Flow{
@@ -284,7 +285,7 @@ func TestLabelMerge(t *testing.T) {
 		goldmane.WithNowFunc(c.Now),
 	}
 	defer setupTest(t, opts...)()
-	go gm.Run(c.Now().Unix())
+	<-gm.Run(c.Now().Unix())
 
 	// Create 10 flows, each with one common label and one unique label.
 	// All other fields are the same.
@@ -336,7 +337,7 @@ func TestRotation(t *testing.T) {
 		goldmane.WithNowFunc(c.Now),
 	}
 	defer setupTest(t, opts...)()
-	go gm.Run(now)
+	<-gm.Run(now)
 
 	// Create a Flow. This test relies on an understanding of the underlying bucket ring:
 	// - The index contains two extra buckets, one currently filling, and one in the future.
@@ -422,7 +423,7 @@ func TestManyFlows(t *testing.T) {
 		goldmane.WithNowFunc(c.Now),
 	}
 	defer setupTest(t, opts...)()
-	go gm.Run(now)
+	<-gm.Run(now)
 
 	// Create 20k flows and send them as fast as we can. See how Goldmane handles it.
 	fl := &proto.Flow{
@@ -472,7 +473,7 @@ func TestPagination(t *testing.T) {
 		goldmane.WithNowFunc(c.Now),
 	}
 	defer setupTest(t, opts...)()
-	go gm.Run(now)
+	<-gm.Run(now)
 
 	// Create 30 different flows.
 	for i := range 30 {
@@ -573,7 +574,7 @@ func TestTimeRanges(t *testing.T) {
 		goldmane.WithNowFunc(c.Now),
 	}
 	prepareFlows := func() {
-		// Create a flow spread across a range of buckets within the goldmane.
+		// Create a flow spread across a range of buckets within goldmane.
 		// 60 buckes of 1s each means we want one flow per second for 60s.
 		for i := range 60 {
 			startTime := now - int64(i) + 1
@@ -619,7 +620,7 @@ func TestTimeRanges(t *testing.T) {
 		},
 		{
 			// This sets the time range explicitly, to include flows currently being aggregated and flows that
-			// are seen as from the "future" by the goldmane.
+			// are seen as from the "future" by goldmane.
 			name:                          "All flows, including current + future",
 			query:                         &proto.FlowListRequest{StartTimeLt: now + 2},
 			expectedNumConnectionsStarted: 60,
@@ -662,7 +663,7 @@ func TestTimeRanges(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			defer setupTest(t, opts...)()
-			go gm.Run(now)
+			<-gm.Run(now)
 
 			// Create flows.
 			prepareFlows()
@@ -753,7 +754,7 @@ func TestSink(t *testing.T) {
 
 		// Start Goldmane, and rollover to trigger an emission.
 		// We shouldn't see any buckets pushed to the sink, as we haven't sent any flows.
-		go gm.Run(now)
+		<-gm.Run(now)
 
 		// Set the sink. Setting the Sink is asynchronous and triggers a check for flow emission - as such,
 		// we need to wait for this to complete before we can start sending flows.
@@ -889,7 +890,7 @@ func TestSink(t *testing.T) {
 
 		// Start Goldmane, and rollover to trigger an emission.
 		// We shouldn't see any buckets pushed to the sink, as we haven't sent any flows.
-		go gm.Run(now)
+		<-gm.Run(now)
 
 		// Set the sink. Setting the Sink is asynchronous and triggers a check for flow emission - as such,
 		// we need to wait for this to complete before we can start sending flows.
@@ -956,7 +957,7 @@ func TestSink(t *testing.T) {
 
 		// Start Goldmane, and rollover to trigger an emission.
 		// We shouldn't see any buckets pushed to the sink, as we haven't sent any flows.
-		go gm.Run(now)
+		<-gm.Run(now)
 
 		// Load up Goldmane with Flow data across a widge range of buckets, spanning
 		// multiple emission windows.
@@ -1039,7 +1040,7 @@ func TestBucketDrift(t *testing.T) {
 	//
 	// From there, we can expect Goldmane to notice that it has missed time somehow and accelerate the scheduling of the next rollover
 	// in order to compensate.
-	go gm.Run(c.Now().Unix())
+	<-gm.Run(c.Now().Unix())
 
 	// We want to simulate a rollover that happens 3 seconds late for the scheduled rollover.
 	rt := int64(initialNow + aggregationWindowSecs + 3)
@@ -1094,8 +1095,8 @@ func TestStreams(t *testing.T) {
 		}
 		defer setupTest(t, opts...)()
 
-		// Start the goldmane.
-		go gm.Run(c.Now().Unix())
+		// Start goldmane.
+		<-gm.Run(c.Now().Unix())
 
 		// Insert some random historical flow data from the past over the
 		// time range of now-10 to now-5.
@@ -1150,7 +1151,7 @@ func TestStreams(t *testing.T) {
 		fl := testutils.NewRandomFlow(c.Now().Unix() - 1)
 		gm.Receive(types.ProtoToFlow(fl))
 
-		// Expect the flow to have been received for a total of 6 flows in the goldmane.
+		// Expect the flow to have been received for a total of 6 flows in goldmane.
 		Eventually(func() error {
 			results, err := gm.List(&proto.FlowListRequest{})
 			if err != nil {
@@ -1202,8 +1203,8 @@ func TestStreams(t *testing.T) {
 		}
 		defer setupTest(t, opts...)()
 
-		// Start the goldmane.
-		go gm.Run(c.Now().Unix())
+		// Start goldmane.
+		<-gm.Run(c.Now().Unix())
 
 		// Create a flow that will span multiple time buckets.
 		newestStart := c.Now().Unix() - 2
@@ -1281,7 +1282,7 @@ func TestStreams(t *testing.T) {
 		defer setupTest(t, opts...)()
 
 		// Start Goldmane.
-		go gm.Run(c.Now().Unix())
+		<-gm.Run(c.Now().Unix())
 
 		// Create a flow that will span multiple time buckets, with the
 		// newest start time falling at Now().
@@ -1346,9 +1347,92 @@ func TestStreams(t *testing.T) {
 		require.True(t, builder.BuildInto(&proto.Filter{}, result))
 		require.Nil(t, streamed.add(result))
 	})
+
+	t.Run("Stream cancellation", func(t *testing.T) {
+		// Create a clock and rollover controller.
+		c := newClock(initialNow)
+		roller := &rolloverController{
+			ch:                    make(chan time.Time),
+			aggregationWindowSecs: 1,
+			clock:                 c,
+		}
+		opts := []goldmane.Option{
+			goldmane.WithRolloverTime(1 * time.Second),
+			goldmane.WithRolloverFunc(roller.After),
+			goldmane.WithNowFunc(c.Now),
+		}
+		defer setupTest(t, opts...)()
+
+		// Start Goldmane.
+		<-gm.Run(c.Now().Unix())
+
+		// Create many flows.
+		for range 5000 {
+			// Ingest some new flow data.
+			fl := testutils.NewRandomFlow(c.Now().Unix() - 5)
+			gm.Receive(types.ProtoToFlow(fl))
+		}
+
+		// Start a stream, and cancel it immediately after receiving the first flow in order to
+		// "catch it in the act" of iterating flows.
+		for range 10 {
+			stream, err := gm.Stream(&proto.FlowStreamRequest{StartTimeGte: c.Now().Unix() - 6})
+			require.Nil(t, err)
+			require.NotNil(t, stream)
+			defer stream.Close()
+
+			builder := &storage.DeferredFlowBuilder{}
+			Eventually(stream.Flows(), waitTimeout, retryTime).Should(Receive(&builder))
+
+			stream.Close()
+		}
+	})
+
+	t.Run("Concurrent streams", func(t *testing.T) {
+		// Create a clock and rollover controller.
+		c := newClock(initialNow)
+		roller := &rolloverController{
+			ch:                    make(chan time.Time),
+			aggregationWindowSecs: 1,
+			clock:                 c,
+		}
+		opts := []goldmane.Option{
+			goldmane.WithRolloverTime(1 * time.Second),
+			goldmane.WithRolloverFunc(roller.After),
+			goldmane.WithNowFunc(c.Now),
+		}
+		defer setupTest(t, opts...)()
+
+		// Start Goldmane.
+		<-gm.Run(c.Now().Unix())
+
+		// Create many flows.
+		for range 5000 {
+			// Ingest some new flow data.
+			fl := testutils.NewRandomFlow(c.Now().Unix() - 5)
+			gm.Receive(types.ProtoToFlow(fl))
+		}
+
+		// Start 10 concurrent streams that will act at the same time.
+		var streams []stream.Stream
+		for range 10 {
+			stream, err := gm.Stream(&proto.FlowStreamRequest{StartTimeGte: c.Now().Unix() - 6})
+			require.Nil(t, err)
+			require.NotNil(t, stream)
+			defer stream.Close()
+			streams = append(streams, stream)
+		}
+
+		// Each stream should receive something.
+		for _, stream := range streams {
+			builder := &storage.DeferredFlowBuilder{}
+			Eventually(stream.Flows(), waitTimeout, retryTime).Should(Receive(&builder))
+			stream.Close()
+		}
+	})
 }
 
-// TestSortOrder tests basic functionality of the various sorted indices supported by the goldmane.
+// TestSortOrder tests basic functionality of the various sorted indices supported by goldmane.
 func TestSortOrder(t *testing.T) {
 	type tc struct {
 		name   string
@@ -1380,7 +1464,7 @@ func TestSortOrder(t *testing.T) {
 				goldmane.WithNowFunc(c.Now),
 			}
 			defer setupTest(t, opts...)()
-			go gm.Run(c.Now().Unix())
+			<-gm.Run(c.Now().Unix())
 
 			// Create a bunch of random flows.
 			for range 100 {
@@ -1649,7 +1733,7 @@ func TestFilter(t *testing.T) {
 				goldmane.WithNowFunc(c.Now),
 			}
 			defer setupTest(t, opts...)()
-			go gm.Run(c.Now().Unix())
+			<-gm.Run(c.Now().Unix())
 
 			// Create 10 flows, with a mix of fields to filter on.
 			for i := range 10 {
@@ -1684,7 +1768,7 @@ func TestFilter(t *testing.T) {
 					},
 				}
 
-				// Send it to the goldmane.
+				// Send it to goldmane.
 				gm.Receive(types.ProtoToFlow(fl))
 			}
 
@@ -1788,7 +1872,7 @@ func TestFilterHints(t *testing.T) {
 				goldmane.WithNowFunc(c.Now),
 			}
 			defer setupTest(t, opts...)()
-			go gm.Run(c.Now().Unix())
+			<-gm.Run(c.Now().Unix())
 
 			// Create 10 flows, with a mix of fields to filter on.
 			for i := range 10 {
@@ -1811,7 +1895,7 @@ func TestFilterHints(t *testing.T) {
 					},
 				}
 
-				// Send it to the goldmane.
+				// Send it to goldmane.
 				gm.Receive(types.ProtoToFlow(fl))
 			}
 
@@ -1860,7 +1944,7 @@ func TestFilterHints(t *testing.T) {
 				goldmane.WithNowFunc(c.Now),
 			}
 			defer setupTest(t, opts...)()
-			go gm.Run(c.Now().Unix())
+			<-gm.Run(c.Now().Unix())
 
 			// Create 10 flows, with a mix of fields to filter on.
 			for i := range 10 {
@@ -1884,7 +1968,7 @@ func TestFilterHints(t *testing.T) {
 					},
 				}
 
-				// Send it to the goldmane.
+				// Send it to goldmane.
 				gm.Receive(types.ProtoToFlow(fl))
 			}
 
@@ -1937,7 +2021,7 @@ func TestStatistics(t *testing.T) {
 			// Store off the flows we created so the tests can refer to them.
 			flows = append(flows, fl)
 
-			// Send it to the goldmane.
+			// Send it to goldmane.
 			gm.Receive(types.ProtoToFlow(fl))
 			roller.rolloverAndAdvanceClock(1)
 		}
@@ -1967,7 +2051,7 @@ func TestStatistics(t *testing.T) {
 				goldmane.WithNowFunc(c.Now),
 			}
 			defer setupTest(t, opts...)()
-			go gm.Run(c.Now().Unix())
+			<-gm.Run(c.Now().Unix())
 
 			// Create some flows.
 			flows := createFlows(numFlows, mutateUniquePolicyName)
@@ -2099,7 +2183,7 @@ func TestStatistics(t *testing.T) {
 				goldmane.WithNowFunc(c.Now),
 			}
 			defer setupTest(t, opts...)()
-			go gm.Run(c.Now().Unix())
+			<-gm.Run(c.Now().Unix())
 
 			// Create some flows.
 			_ = createFlows(numFlows, mutateUniquePolicyName)
@@ -2152,7 +2236,7 @@ func TestStatistics(t *testing.T) {
 				goldmane.WithNowFunc(c.Now),
 			}
 			defer setupTest(t, opts...)()
-			go gm.Run(c.Now().Unix())
+			<-gm.Run(c.Now().Unix())
 
 			// Create some flows, mutating the first policy hit in each to be an EndOfTier hit.
 			mutateEndOftier := func(fl *proto.Flow, i int) {
@@ -2220,7 +2304,7 @@ func TestStatistics(t *testing.T) {
 				goldmane.WithNowFunc(c.Now),
 			}
 			defer setupTest(t, opts...)()
-			go gm.Run(c.Now().Unix())
+			<-gm.Run(c.Now().Unix())
 
 			// Create some flows, mutating the first policy hit in each to be an EndOfTier hit.
 			mutateEndOftier := func(fl *proto.Flow, i int) {
@@ -2278,7 +2362,7 @@ func TestStatistics(t *testing.T) {
 				goldmane.WithNowFunc(c.Now),
 			}
 			defer setupTest(t, opts...)()
-			go gm.Run(c.Now().Unix())
+			<-gm.Run(c.Now().Unix())
 
 			// Create some flows.
 			_ = createFlows(numFlows, mutateUniquePolicyName)

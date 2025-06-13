@@ -15,11 +15,10 @@
 package storage
 
 import (
-	"time"
-
 	"github.com/sirupsen/logrus"
 
 	"github.com/projectcalico/calico/goldmane/pkg/types"
+	"github.com/projectcalico/calico/lib/std/time"
 )
 
 func GetStartTime(interval int) int64 {
@@ -68,6 +67,6 @@ func (fc *FlowCollection) AddFlow(flow types.Flow) {
 // Note this must be called synchronously with the bucket ring.
 func (fc *FlowCollection) Complete() {
 	for _, b := range fc.buckets {
-		b.Pushed = true
+		b.pushed = true
 	}
 }

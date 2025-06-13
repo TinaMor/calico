@@ -15,9 +15,9 @@
 package storage
 
 import (
-	"time"
-
 	"github.com/sirupsen/logrus"
+
+	"github.com/projectcalico/calico/lib/std/time"
 )
 
 type BucketRingOption func(*BucketRing)
@@ -35,7 +35,7 @@ func WithBucketsToAggregate(n int) BucketRingOption {
 	}
 }
 
-func WithStreamReceiver(sm StreamReceiver) BucketRingOption {
+func WithStreamReceiver(sm Receiver) BucketRingOption {
 	return func(r *BucketRing) {
 		logrus.WithField("streamReceiver", sm).Debug("Setting stream receiver")
 		r.streams = sm
