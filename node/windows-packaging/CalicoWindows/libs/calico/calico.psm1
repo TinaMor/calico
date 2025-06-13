@@ -17,107 +17,90 @@ $powerShellPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.ex
 $baseDir = "$PSScriptRoot\..\.."
 $NSSMPath = "$baseDir\nssm\win64\nssm.exe"
 
-function fileIsMissing($path)
-{
+function fileIsMissing($path) {
     return (("$path" -EQ "") -OR (-NOT(Test-Path "$path")))
 }
 
-function Test-CalicoConfiguration()
-{
+function Test-CalicoConfiguration() {
     Write-Host "Validating configuration..."
-    if (!$env:CNI_BIN_DIR)
-    {
+    if (!$env:CNI_BIN_DIR) {
         throw "Config not loaded?."
     }
     if ($env:CALICO_NETWORKING_BACKEND -EQ "windows-bgp" -OR $env:CALICO_NETWORKING_BACKEND -EQ "vxlan") {
-        if (fileIsMissing($env:CNI_BIN_DIR))
-        {
-            throw "CNI binary directory $env:CNI_BIN_DIR doesn't exist.  Please create it and ensure kubelet " +  `
-                    "is configured with matching --cni-bin-dir."
+        if (fileIsMissing($env:CNI_BIN_DIR)) {
+            throw "CNI binary directory $env:CNI_BIN_DIR doesn't exist.  Please create it and ensure kubelet " + `
+                "is configured with matching --cni-bin-dir."
         }
-        if (fileIsMissing($env:CNI_CONF_DIR))
-        {
-            throw "CNI config directory $env:CNI_CONF_DIR doesn't exist.  Please create it and ensure kubelet " +  `
-                    "is configured with matching --cni-conf-dir."
+        if (fileIsMissing($env:CNI_CONF_DIR)) {
+            throw "CNI config directory $env:CNI_CONF_DIR doesn't exist.  Please create it and ensure kubelet " + `
+                "is configured with matching --cni-conf-dir."
         }
     }
     if ($env:CALICO_NETWORKING_BACKEND -EQ "vxlan") {
-        if (fileIsMissing($env:CNI_BIN_DIR))
-        {
-            throw "CNI binary directory $env:CNI_BIN_DIR doesn't exist.  Please create it and ensure kubelet " +  `
-                    "is configured with matching --cni-bin-dir."
+        if (fileIsMissing($env:CNI_BIN_DIR)) {
+            throw "CNI binary directory $env:CNI_BIN_DIR doesn't exist.  Please create it and ensure kubelet " + `
+                "is configured with matching --cni-bin-dir."
         }
-        if (fileIsMissing($env:CNI_CONF_DIR))
-        {
-            throw "CNI config directory $env:CNI_CONF_DIR doesn't exist.  Please create it and ensure kubelet " +  `
-                    "is configured with matching --cni-conf-dir."
+        if (fileIsMissing($env:CNI_CONF_DIR)) {
+            throw "CNI config directory $env:CNI_CONF_DIR doesn't exist.  Please create it and ensure kubelet " + `
+                "is configured with matching --cni-conf-dir."
         }
     }
     if ($env:CALICO_NETWORKING_BACKEND -EQ "vxlan" -AND $env:CNI_IPAM_TYPE -NE "calico-ipam") {
         throw "Calico VXLAN requires IPAM type calico-ipam, not $env:CNI_IPAM_TYPE."
     }
-    if ($env:CALICO_DATASTORE_TYPE -EQ "kubernetes")
-    {
-        if (fileIsMissing($env:KUBECONFIG))
-        {
-            throw "kubeconfig file $env:KUBECONFIG doesn't exist.  Please update the configuration to match. " +  `
-                    "the location of your kubeconfig file."
+    if ($env:CALICO_DATASTORE_TYPE -EQ "kubernetes") {
+        if (fileIsMissing($env:KUBECONFIG)) {
+            throw "kubeconfig file $env:KUBECONFIG doesn't exist.  Please update the configuration to match. " + `
+                "the location of your kubeconfig file."
         }
     }
-    elseif ($env:CALICO_DATASTORE_TYPE -EQ "etcdv3")
-    {
-        if (("$env:ETCD_ENDPOINTS" -EQ "") -OR ("$env:ETCD_ENDPOINTS" -EQ "<your etcd endpoints>"))
-        {
+    elseif ($env:CALICO_DATASTORE_TYPE -EQ "etcdv3") {
+        if (("$env:ETCD_ENDPOINTS" -EQ "") -OR ("$env:ETCD_ENDPOINTS" -EQ "<your etcd endpoints>")) {
             throw "Etcd endpoint not set, please update the configuration."
         }
-        if (("$env:ETCD_KEY_FILE" -NE "") -OR ("$env:ETCD_CERT_FILE" -NE "") -OR ("$env:ETCD_CA_CERT_FILE" -NE ""))
-        {
-            if (fileIsMissing($env:ETCD_KEY_FILE))
-            {
+        if (("$env:ETCD_KEY_FILE" -NE "") -OR ("$env:ETCD_CERT_FILE" -NE "") -OR ("$env:ETCD_CA_CERT_FILE" -NE "")) {
+            if (fileIsMissing($env:ETCD_KEY_FILE)) {
                 throw "Some etcd TLS parameters are configured but etcd key file was not found."
             }
-            if (fileIsMissing($env:ETCD_CERT_FILE))
-            {
+            if (fileIsMissing($env:ETCD_CERT_FILE)) {
                 throw "Some etcd TLS parameters are configured but etcd certificate file was not found."
             }
-            if (fileIsMissing($env:ETCD_CA_CERT_FILE))
-            {
+            if (fileIsMissing($env:ETCD_CA_CERT_FILE)) {
                 throw "Some etcd TLS parameters are configured but etcd CA certificate file was not found."
             }
         }
     }
-    else
-    {
+    else {
         throw "Please set datastore type to 'etcdv3' or 'kubernetes'; current value: $env:CALICO_DATASTORE_TYPE."
     }
 }
 
 function Set-EnvVarIfNotSet {
     param(
-        [parameter(Mandatory=$true)] $var,
-        [parameter(Mandatory=$true)] $defaultValue
+        [parameter(Mandatory = $true)] $var,
+        [parameter(Mandatory = $true)] $defaultValue
     )
-    if (-not (Test-Path "env:$var"))
-    {
+    if (-not (Test-Path "env:$var")) {
         Write-Host ("Environment variable $var is not set. Setting it to the default value: {0}" -f $defaultValue)
         [Environment]::SetEnvironmentVariable($var, $defaultValue, 'Process')
-    } else {
+    }
+    else {
         Write-Host ("Environment variable $var is already set: {0}" -f (gci env:$var | select -expand Value))
     }
 }
 
 function Set-ConfigParameters {
     param(
-        [parameter(Mandatory=$true)] $var,
-        [parameter(Mandatory=$true)] $value
+        [parameter(Mandatory = $true)] $var,
+        [parameter(Mandatory = $true)] $value
     )
-    $OldString='Set-EnvVarIfNotSet -var "{0}".*$' -f $var
-    $NewString='Set-EnvVarIfNotSet -var "{0}" -defaultValue "{1}"' -f $var, $value
+    $OldString = 'Set-EnvVarIfNotSet -var "{0}".*$' -f $var
+    $NewString = 'Set-EnvVarIfNotSet -var "{0}" -defaultValue "{1}"' -f $var, $value
     (Get-Content $baseDir\config.ps1) -replace $OldString, $NewString | Set-Content $baseDir\config.ps1 -Force
 }
 
-function Install-CNIPlugin()
-{
+function Install-CNIPlugin() {
     Write-Host "Copying CNI binaries to $env:CNI_BIN_DIR"
     cp "$baseDir\cni\*.exe" "$env:CNI_BIN_DIR"
 
@@ -138,43 +121,40 @@ function Install-CNIPlugin()
     foreach ($ip in $dnsIPs) {
         $ipList += "`"$ip`""
     }
-    $dnsIPList=($ipList -join ",").TrimEnd(',')
+    $dnsIPList = ($ipList -join ",").TrimEnd(',')
 
     # HNS v1 and v2 have different string values for the ROUTE endpoint policy type.
     $routeType = "ROUTE"
-    if (Get-IsContainerdRunning)
-    {
+    if (Get-IsContainerdRunning) {
         $routeType = "SDNROUTE"
     }
 
     $dsrSupport = "false"
-    if (Get-IsDSRSupported)
-    {
+    if (Get-IsDSRSupported) {
         $dsrSupport = "true"
     }
 
     (Get-Content "$baseDir\cni.conf.template") | ForEach-Object {
         $_.replace('__NODENAME_FILE__', $nodeNameFile).
-                replace('__KUBECONFIG__', $kubeconfigFile).
-                replace('__K8S_SERVICE_CIDR__', $env:K8S_SERVICE_CIDR).
-                replace('__DNS_NAME_SERVERS__', $dnsIPList).
-                replace('__DATASTORE_TYPE__', $env:CALICO_DATASTORE_TYPE).
-                replace('__DSR_SUPPORT__', $dsrSupport).
-                replace('__ETCD_ENDPOINTS__', $env:ETCD_ENDPOINTS).
-                replace('__ETCD_KEY_FILE__', $etcdKeyFile).
-                replace('__ETCD_CERT_FILE__', $etcdCertFile).
-                replace('__ETCD_CA_CERT_FILE__', $etcdCACertFile).
-                replace('__IPAM_TYPE__', $env:CNI_IPAM_TYPE).
-                replace('__MODE__', $mode).
-                replace('__VNI__', $env:VXLAN_VNI).
-                replace('__MAC_PREFIX__', $env:VXLAN_MAC_PREFIX).
-                replace('__ROUTE_TYPE__', $routeType)
+        replace('__KUBECONFIG__', $kubeconfigFile).
+        replace('__K8S_SERVICE_CIDR__', $env:K8S_SERVICE_CIDR).
+        replace('__DNS_NAME_SERVERS__', $dnsIPList).
+        replace('__DATASTORE_TYPE__', $env:CALICO_DATASTORE_TYPE).
+        replace('__DSR_SUPPORT__', $dsrSupport).
+        replace('__ETCD_ENDPOINTS__', $env:ETCD_ENDPOINTS).
+        replace('__ETCD_KEY_FILE__', $etcdKeyFile).
+        replace('__ETCD_CERT_FILE__', $etcdCertFile).
+        replace('__ETCD_CA_CERT_FILE__', $etcdCACertFile).
+        replace('__IPAM_TYPE__', $env:CNI_IPAM_TYPE).
+        replace('__MODE__', $mode).
+        replace('__VNI__', $env:VXLAN_VNI).
+        replace('__MAC_PREFIX__', $env:VXLAN_MAC_PREFIX).
+        replace('__ROUTE_TYPE__', $routeType)
     } | Set-Content "$cniConfFile"
     Write-Host "Wrote CNI configuration."
 }
 
-function Remove-CNIPlugin()
-{
+function Remove-CNIPlugin() {
     $cniConfFile = $env:CNI_CONF_DIR + "\" + $env:CNI_CONF_FILENAME
     if (Test-Path $cniConfFile) {
         Write-Host "Removing Calico CNI conf file at $cniConfFile ..."
@@ -188,8 +168,7 @@ function Remove-CNIPlugin()
     }
 }
 
-function Install-NodeService()
-{
+function Install-NodeService() {
     Write-Host "Installing Calico node startup service..."
 
     ensureRegistryKey
@@ -198,13 +177,79 @@ function Install-NodeService()
     Unblock-File $baseDir\node\node-service.ps1
 
     & $NSSMPath install CalicoNode $powerShellPath
+    Write-Host "Install-NodeService()- Adapters after installing CalicoNode service: '$NSSMPath install CalicoNode $powerShellPath'"
+    $endpoints = Get-HnsEndpoint
+    Write-Host "Found $(($endpoints | Measure-Object).Count) HNS endpoints."
+    $endpoints | Format-List
+    Write-Output $endpoints
+
+    # Get all adapters created for containers when the pod is created
+    $adapters = Get-NetAdapter -IncludeHidden | Select-Object Name, InterfaceDescription, Status, ifIndex, InterfaceName, InterfaceType, InterfaceGuid, MacAddress, DeviceID, InterfaceAlias | Sort-Object InterfaceDescription, Name
+    Write-Host "Found $(($adapters | Measure-Object).Count) network adapters."
+    $adapters | Format-List
+    Write-Output $adapters
+
+    # Get the net interfaces
+    $interfaces = Get-NetIPInterface -AddressFamily IPv4 -IncludeAllCompartments | Sort-Object ifIndex | Select-Object ifIndex, InterfaceAlias, Dhcp, ConnectionState, InterfaceMetric, AutomaticMetric
+    Write-Host "Found $(($interfaces | Measure-Object).Count) network interfaces."
+    $interfaces | Format-List
+    Write-Output $interfaces
+
+    Write-Output (ipconfig /all)
+
+
     & $NSSMPath set CalicoNode AppParameters $baseDir\node\node-service.ps1
+
+    Write-Host "Install-NodeService()- Adapters after setting CalicoNode AppParameters: '$NSSMPath set CalicoNode AppParameters $baseDir\node\node-service.ps1'"
+
+    # Get all HNS endpoints
+    $endpoints = Get-HnsEndpoint
+    Write-Host "Found $(($endpoints | Measure-Object).Count) HNS endpoints."
+    $endpoints | Format-List
+    Write-Output $endpoints
+
+    # Get all adapters created for containers when the pod is created
+    $adapters = Get-NetAdapter -IncludeHidden | Select-Object Name, InterfaceDescription, Status, ifIndex, InterfaceName, InterfaceType, InterfaceGuid, MacAddress, DeviceID, InterfaceAlias | Sort-Object InterfaceDescription, Name
+    Write-Host "Found $(($adapters | Measure-Object).Count) network adapters."
+    $adapters | Format-List
+    Write-Output $adapters
+
+    # Get the net interfaces
+    $interfaces = Get-NetIPInterface -AddressFamily IPv4 -IncludeAllCompartments | Sort-Object ifIndex | Select-Object ifIndex, InterfaceAlias, Dhcp, ConnectionState, InterfaceMetric, AutomaticMetric
+    Write-Host "Found $(($interfaces | Measure-Object).Count) network interfaces."
+    $interfaces | Format-List
+    Write-Output $interfaces
+
+    Write-Output (ipconfig /all)
+
     & $NSSMPath set CalicoNode AppDirectory $baseDir
     & $NSSMPath set CalicoNode DisplayName "Calico Windows Startup"
     & $NSSMPath set CalicoNode Description "Calico Windows Startup, configures Calico datamodel resources for this node."
 
     # Configure it to auto-start by default.
     & $NSSMPath set CalicoNode Start SERVICE_AUTO_START
+
+    Write-Host "Install-NodeService()- Adapters after setting CalicoNode Start SERVICE_AUTO_START: '$NSSMPath set CalicoNode Start SERVICE_AUTO_START'"
+    $endpoints = Get-HnsEndpoint
+    Write-Host "Found $(($endpoints | Measure-Object).Count) HNS endpoints."
+    $endpoints | Format-List
+    Write-Output $endpoints
+
+    # Get all adapters created for containers when the pod is created
+    $adapters = Get-NetAdapter -IncludeHidden | Select-Object Name, InterfaceDescription, Status, ifIndex, InterfaceName, InterfaceType, InterfaceGuid, MacAddress, DeviceID, InterfaceAlias | Sort-Object InterfaceDescription, Name
+    Write-Host "Found $(($adapters | Measure-Object).Count) network adapters."
+    $adapters | Format-List
+    Write-Output $adapters
+
+    # Get the net interfaces
+    $interfaces = Get-NetIPInterface -AddressFamily IPv4 -IncludeAllCompartments | Sort-Object ifIndex | Select-Object ifIndex, InterfaceAlias, Dhcp, ConnectionState, InterfaceMetric, AutomaticMetric
+    Write-Host "Found $(($interfaces | Measure-Object).Count) network interfaces."
+    $interfaces | Format-List
+    Write-Output $interfaces
+
+    Write-Output (ipconfig /all)
+
+
     & $NSSMPath set CalicoNode ObjectName LocalSystem
     & $NSSMPath set CalicoNode Type SERVICE_WIN32_OWN_PROCESS
 
@@ -212,8 +257,7 @@ function Install-NodeService()
     & $NSSMPath set CalicoNode AppThrottle 1500
 
     # Create the log directory if needed.
-    if (-Not(Test-Path "$env:CALICO_LOG_DIR"))
-    {
+    if (-Not(Test-Path "$env:CALICO_LOG_DIR")) {
         write "Creating log directory."
         md -Path "$env:CALICO_LOG_DIR"
     }
@@ -232,13 +276,11 @@ function Install-NodeService()
     Write-Host "Done installing startup service."
 }
 
-function Remove-NodeService()
-{
+function Remove-NodeService() {
     & $NSSMPath remove CalicoNode confirm
 }
 
-function Install-FelixService()
-{
+function Install-FelixService() {
     Write-Host "Installing Felix service..."
 
     # Ensure our service file can run.
@@ -246,7 +288,53 @@ function Install-FelixService()
 
     # We run Felix via a wrapper script to make it easier to update env vars.
     & $NSSMPath install CalicoFelix $powerShellPath
+    Write-Host "Install-FelixService()- Adapters after installing CalicoFelix service: '$NSSMPath install CalicoFelix $powerShellPath'"
+    
+    $endpoints = Get-HnsEndpoint
+    Write-Host "Found $(($endpoints | Measure-Object).Count) HNS endpoints."
+    $endpoints | Format-List
+    Write-Output $endpoints
+
+    # Get all adapters created for containers when the pod is created
+    $adapters = Get-NetAdapter -IncludeHidden | Select-Object Name, InterfaceDescription, Status, ifIndex, InterfaceName, InterfaceType, InterfaceGuid, MacAddress, DeviceID, InterfaceAlias | Sort-Object InterfaceDescription, Name
+    Write-Host "Found $(($adapters | Measure-Object).Count) network adapters."
+    $adapters | Format-List
+    Write-Output $adapters
+
+    # Get the net interfaces
+    $interfaces = Get-NetIPInterface -AddressFamily IPv4 -IncludeAllCompartments | Sort-Object ifIndex | Select-Object ifIndex, InterfaceAlias, Dhcp, ConnectionState, InterfaceMetric, AutomaticMetric
+    Write-Host "Found $(($interfaces | Measure-Object).Count) network interfaces."
+    $interfaces | Format-List
+    Write-Output $interfaces
+
+    Write-Output (ipconfig /all)
+
+
+
     & $NSSMPath set CalicoFelix AppParameters $baseDir\felix\felix-service.ps1
+
+    Write-Host "Install-FelixService()- Adapters after setting CalicoFelix AppParameters: '$NSSMPath set CalicoFelix AppParameters $baseDir\felix\felix-service.ps1'"
+    
+    $endpoints = Get-HnsEndpoint
+    Write-Host "Found $(($endpoints | Measure-Object).Count) HNS endpoints."
+    $endpoints | Format-List
+    Write-Output $endpoints
+
+    # Get all adapters created for containers when the pod is created
+    $adapters = Get-NetAdapter -IncludeHidden | Select-Object Name, InterfaceDescription, Status, ifIndex, InterfaceName, InterfaceType, InterfaceGuid, MacAddress, DeviceID, InterfaceAlias | Sort-Object InterfaceDescription, Name
+    Write-Host "Found $(($adapters | Measure-Object).Count) network adapters."
+    $adapters | Format-List
+    Write-Output $adapters
+
+    # Get the net interfaces
+    $interfaces = Get-NetIPInterface -AddressFamily IPv4 -IncludeAllCompartments | Sort-Object ifIndex | Select-Object ifIndex, InterfaceAlias, Dhcp, ConnectionState, InterfaceMetric, AutomaticMetric
+    Write-Host "Found $(($interfaces | Measure-Object).Count) network interfaces."
+    $interfaces | Format-List
+    Write-Output $interfaces
+
+    Write-Output (ipconfig /all)
+
+
     & $NSSMPath set CalicoFelix AppDirectory $baseDir
     & $NSSMPath set CalicoFelix DependOnService "CalicoNode"
     & $NSSMPath set CalicoFelix DisplayName "Calico Windows Agent"
@@ -261,9 +349,8 @@ function Install-FelixService()
     & $NSSMPath set CalicoFelix AppThrottle 1500
 
     # Create the log directory if needed.
-    if (-Not(Test-Path "$env:CALICO_LOG_DIR"))
-    {
-        write "Creating log directory."
+    if (-Not(Test-Path "$env:CALICO_LOG_DIR")) {
+        write "Creating log directory: '$env:CALICO_LOG_DIR'"
         md -Path "$env:CALICO_LOG_DIR"
     }
     & $NSSMPath set CalicoFelix AppStdout $env:CALICO_LOG_DIR\calico-felix.log
@@ -284,8 +371,7 @@ function Remove-FelixService() {
     & $NSSMPath remove CalicoFelix confirm
 }
 
-function Install-ConfdService()
-{
+function Install-ConfdService() {
     Write-Host "Installing confd service..."
 
     # Ensure our service file can run.
@@ -308,8 +394,7 @@ function Install-ConfdService()
     & $NSSMPath set CalicoConfd AppThrottle 1500
 
     # Create the log directory if needed.
-    if (-Not(Test-Path "$env:CALICO_LOG_DIR"))
-    {
+    if (-Not(Test-Path "$env:CALICO_LOG_DIR")) {
         write "Creating log directory."
         md -Path "$env:CALICO_LOG_DIR"
     }
@@ -331,8 +416,7 @@ function Remove-ConfdService() {
     & $NSSMPath remove CalicoConfd confirm
 }
 
-function Install-UpgradeService()
-{
+function Install-UpgradeService() {
     Write-Host "Installing Calico Upgrade startup service..."
 
     ensureRegistryKey
@@ -355,8 +439,7 @@ function Install-UpgradeService()
     & $NSSMPath set CalicoUpgrade AppThrottle 1500
 
     # Create the log directory if needed.
-    if (-Not(Test-Path "$env:CALICO_LOG_DIR"))
-    {
+    if (-Not(Test-Path "$env:CALICO_LOG_DIR")) {
         write "Creating log directory."
         md -Path "$env:CALICO_LOG_DIR"
     }
@@ -374,13 +457,10 @@ function Install-UpgradeService()
     Write-Host "Done installing upgrade service."
 }
 
-function Remove-UpgradeService()
-{
+function Remove-UpgradeService() {
     $svc = Get-Service | where Name -EQ 'CalicoUpgrade'
-    if ($svc -NE $null)
-    {
-        if ($svc.Status -EQ 'Running')
-        {
+    if ($svc -NE $null) {
+        if ($svc.Status -EQ 'Running') {
             Write-Host "CalicoUpgrade service is running, stopping it..."
             & $NSSMPath stop CalicoUpgrade confirm
         }
@@ -389,21 +469,17 @@ function Remove-UpgradeService()
     }
 }
 
-function Wait-ForManagementIP($NetworkName)
-{
-    while ((Get-HnsNetwork | ? Name -EQ $NetworkName).ManagementIP -EQ $null)
-    {
+function Wait-ForManagementIP($NetworkName) {
+    while ((Get-HnsNetwork | ? Name -EQ $NetworkName).ManagementIP -EQ $null) {
         Write-Host "Waiting for management IP to appear on network $NetworkName..."
         Start-Sleep 1
     }
     return (Get-HnsNetwork | ? Name -EQ $NetworkName).ManagementIP
 }
 
-function Get-LastBootTime()
-{
-    $bootTime = (Get-CimInstance win32_operatingsystem | select @{LABEL='LastBootUpTime';EXPRESSION={$_.lastbootuptime}}).LastBootUpTime
-    if (($bootTime -EQ $null) -OR ($bootTime.length -EQ 0))
-    {
+function Get-LastBootTime() {
+    $bootTime = (Get-CimInstance win32_operatingsystem | select @{LABEL = 'LastBootUpTime'; EXPRESSION = { $_.lastbootuptime } }).LastBootUpTime
+    if (($bootTime -EQ $null) -OR ($bootTime.length -EQ 0)) {
         throw "Failed to get last boot time"
     }
  
@@ -415,54 +491,45 @@ function Get-LastBootTime()
 $softwareRegistryKey = "HKLM:\Software\Tigera"
 $calicoRegistryKey = $softwareRegistryKey + "\Calico"
 
-function ensureRegistryKey()
-{
-    if (! (Test-Path $softwareRegistryKey))
-    {
+function ensureRegistryKey() {
+    if (! (Test-Path $softwareRegistryKey)) {
         New-Item $softwareRegistryKey
     }
-    if (! (Test-Path $calicoRegistryKey))
-    {
+    if (! (Test-Path $calicoRegistryKey)) {
         New-Item $calicoRegistryKey
     }
 }
 
-function Get-StoredLastBootTime()
-{
-    try
-    {
+function Get-StoredLastBootTime() {
+    try {
         return (Get-ItemProperty $calicoRegistryKey -ErrorAction Ignore).LastBootTime
     }
-    catch
-    {
+    catch {
         $PSItem.Exception.Message
     }
 }
 
-function Set-StoredLastBootTime($lastBootTime)
-{
+function Set-StoredLastBootTime($lastBootTime) {
     ensureRegistryKey
 
     return Set-ItemProperty $calicoRegistryKey -Name LastBootTime -Value $lastBootTime
 }
 
-function Wait-ForCalicoInit()
-{
+function Wait-ForCalicoInit() {
     Write-Host "Waiting for Calico initialisation to finish..."
-    $Stored=Get-StoredLastBootTime
-    $Current=Get-LastBootTime
+    $Stored = Get-StoredLastBootTime
+    $Current = Get-LastBootTime
     while ($Stored -NE $Current) {
         Write-Host "Waiting for Calico initialisation to finish...StoredLastBootTime $Stored, CurrentLastBootTime $Current"
         Start-Sleep 1
 
-        $Stored=Get-StoredLastBootTime
-        $Current=Get-LastBootTime
+        $Stored = Get-StoredLastBootTime
+        $Current = Get-LastBootTime
     }
     Write-Host "Calico initialisation finished."
 }
 
-function Get-PlatformType()
-{
+function Get-PlatformType() {
     # AKS
     $hnsNetwork = Get-HnsNetwork | ? Name -EQ azure
     if ($hnsNetwork.name -EQ "azure") {
@@ -479,17 +546,19 @@ function Get-PlatformType()
     $restError = $null
     Try {
         $awsNodeName = Invoke-RestMethod -uri http://169.254.169.254/latest/meta-data/local-hostname -ErrorAction Ignore
-    } Catch {
+    }
+    Catch {
         if ($_.Exception.Response.StatusCode.value__ -eq 401) {
             # IMDSv2
             Try {
-                $token = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token-ttl-seconds" = "21600"} -Method PUT -Uri http://169.254.169.254/latest/api/token -ErrorAction Ignore
-                $awsNodeName = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $token} -uri http://169.254.169.254/latest/meta-data/local-hostname -ErrorAction Ignore
+                $token = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token-ttl-seconds" = "21600" } -Method PUT -Uri http://169.254.169.254/latest/api/token -ErrorAction Ignore
+                $awsNodeName = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $token } -uri http://169.254.169.254/latest/meta-data/local-hostname -ErrorAction Ignore
             }
             Catch {
                 $restError = $_
             }
-        } else {
+        }
+        else {
             $restError = $_
         }
     }
@@ -500,8 +569,9 @@ function Get-PlatformType()
     # GCE
     $restError = $null
     Try {
-        $gceNodeName = Invoke-RestMethod -UseBasicParsing -Headers @{"Metadata-Flavor"="Google"} "http://metadata.google.internal/computeMetadata/v1/instance/hostname"
-    } Catch {
+        $gceNodeName = Invoke-RestMethod -UseBasicParsing -Headers @{"Metadata-Flavor" = "Google" } "http://metadata.google.internal/computeMetadata/v1/instance/hostname"
+    }
+    Catch {
         $restError = $_
     }
     if ($restError -eq $null) {
@@ -511,29 +581,29 @@ function Get-PlatformType()
     return ("bare-metal")
 }
 
-function Set-MetaDataServerRoute($mgmtIP)
-{
+function Set-MetaDataServerRoute($mgmtIP) {
     $route = $null
     Try {
-        $route=Get-NetRoute -DestinationPrefix 169.254.169.254/32 2>$null
-    } Catch {
+        $route = Get-NetRoute -DestinationPrefix 169.254.169.254/32 2>$null
+    }
+    Catch {
         Write-Host "Metadata server route not found."
     }
     if ($route -eq $null) {
         Write-Host "Restore metadata server route."
     
-        $routePrefix= $mgmtIP + "/32"
+        $routePrefix = $mgmtIP + "/32"
         Try {
-            $ifIndex=Get-NetRoute -DestinationPrefix $routePrefix | Select-Object -ExpandProperty ifIndex
+            $ifIndex = Get-NetRoute -DestinationPrefix $routePrefix | Select-Object -ExpandProperty ifIndex
             New-NetRoute -DestinationPrefix 169.254.169.254/32 -InterfaceIndex $ifIndex
-        } Catch {
+        }
+        Catch {
             Write-Host "Warning! Failed to restore metadata server route."
         }
     }
 }
 
-function Get-UpgradeService()
-{
+function Get-UpgradeService() {
     # Don't use get-wmiobject since that is not available in Powershell 7.
     return Get-CimInstance -Query "SELECT * from Win32_Service WHERE name = 'CalicoUpgrade'"
 }
@@ -541,25 +611,21 @@ function Get-UpgradeService()
 # Assume same relative path for containerd CNI bin/conf dir
 # By default, containerd is installed in c:\Program Files\containerd, and CNI bin/conf is in
 # c:\Program Files\containerd\cni\bin and c:\Program Files\containerd\cni\conf.
-function Get-ContainerdCniBinDir()
-{
+function Get-ContainerdCniBinDir() {
     $path = getContainerdPath
     return "$path\cni\bin"
 }
-function Get-ContainerdCniConfDir()
-{
+function Get-ContainerdCniConfDir() {
     $path = getContainerdPath
     return "$path\cni\conf"
 }
 
-function getContainerdService()
-{
+function getContainerdService() {
     # Don't use get-wmiobject since that is not available in Powershell 7.
     return Get-CimInstance -Query "SELECT * from Win32_Service WHERE name = 'containerd'"
 }
 
-function getContainerdPath()
-{
+function getContainerdPath() {
     # Get the containerd service pathname.
     $containerdPathName = getContainerdService | Select-Object -ExpandProperty PathName
 
@@ -567,13 +633,11 @@ function getContainerdPath()
     return (Split-Path -Path $containerdPathname) -replace '"', ""
 }
 
-function Get-IsContainerdRunning()
-{
+function Get-IsContainerdRunning() {
     return (getContainerdService | Select-Object -ExpandProperty State) -EQ "Running"
 }
 
-function Get-IsDSRSupported()
-{
+function Get-IsDSRSupported() {
     # Determine the windows version and build number for DSR support.
     # OsHardwareAbstractionLayer is a version string like 10.0.17763.1432
     $OSInfo = (Get-ComputerInfo  | select WindowsVersion, OsBuildNumber, OsHardwareAbstractionLayer)

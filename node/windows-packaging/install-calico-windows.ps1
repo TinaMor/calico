@@ -21,27 +21,26 @@
 Param(
     # Note: This URL only works for releases. To test development code, build calico-windows.zip from source.
     # VERSION is replaced by our build tooling.
-    [parameter(Mandatory = $false)] $ReleaseBaseURL="https://github.com/projectcalico/calico/releases/download/VERSION/",
-    [parameter(Mandatory = $false)] $ReleaseFile="calico-windows-VERSION.zip",
-    [parameter(Mandatory = $false)] $KubeVersion="",
-    [parameter(Mandatory = $false)] $DownloadOnly="no",
-    [parameter(Mandatory = $false)] $StartCalico="yes",
+    [parameter(Mandatory = $false)] $ReleaseBaseURL = "https://github.com/projectcalico/calico/releases/download/VERSION/",
+    [parameter(Mandatory = $false)] $ReleaseFile = "calico-windows-VERSION.zip",
+    [parameter(Mandatory = $false)] $KubeVersion = "",
+    [parameter(Mandatory = $false)] $DownloadOnly = "no",
+    [parameter(Mandatory = $false)] $StartCalico = "yes",
     # As of Kubernetes version v1.24.0, service account token secrets are no longer automatically created. But this installation script uses that secret
     # to generate a kubeconfig so default to creating the calico-node token secret if it doesn't exist.
-    [parameter(Mandatory = $false)] $AutoCreateServiceAccountTokenSecret="yes",
-    [parameter(Mandatory = $false)] $Datastore="kubernetes",
-    [parameter(Mandatory = $false)] $EtcdEndpoints="",
-    [parameter(Mandatory = $false)] $EtcdTlsSecretName="",
-    [parameter(Mandatory = $false)] $EtcdKey="",
-    [parameter(Mandatory = $false)] $EtcdCert="",
-    [parameter(Mandatory = $false)] $EtcdCaCert="",
-    [parameter(Mandatory = $false)] $ServiceCidr="10.96.0.0/12",
-    [parameter(Mandatory = $false)] $DNSServerIPs="10.96.0.10",
-    [parameter(Mandatory = $false)] $CalicoBackend=""
+    [parameter(Mandatory = $false)] $AutoCreateServiceAccountTokenSecret = "yes",
+    [parameter(Mandatory = $false)] $Datastore = "kubernetes",
+    [parameter(Mandatory = $false)] $EtcdEndpoints = "",
+    [parameter(Mandatory = $false)] $EtcdTlsSecretName = "",
+    [parameter(Mandatory = $false)] $EtcdKey = "",
+    [parameter(Mandatory = $false)] $EtcdCert = "",
+    [parameter(Mandatory = $false)] $EtcdCaCert = "",
+    [parameter(Mandatory = $false)] $ServiceCidr = "10.96.0.0/12",
+    [parameter(Mandatory = $false)] $DNSServerIPs = "10.96.0.10",
+    [parameter(Mandatory = $false)] $CalicoBackend = ""
 )
 
-function DownloadFiles()
-{
+function DownloadFiles() {
     Write-Host "Creating CNI directory"
     md $BaseDir\cni\config -ErrorAction Ignore
 
@@ -49,8 +48,7 @@ function DownloadFiles()
     DownloadFile -Url  https://github.com/Microsoft/SDN/raw/master/Kubernetes/windows/hns.psm1 -Destination $BaseDir\hns.psm1
 }
 
-function PrepareKubernetes()
-{
+function PrepareKubernetes() {
     DownloadFiles
     ipmo -DisableNameChecking C:\k\hns.psm1
     InstallK8sBinaries
@@ -74,17 +72,15 @@ function PrepareKubernetes()
     }
 }
 
-function InstallK8sBinaries()
-{
+function InstallK8sBinaries() {
     Install-7Zip
     $Source = "" | Select Release
-    $Source.Release=$KubeVersion
+    $Source.Release = $KubeVersion
     InstallKubernetesBinaries -Destination $BaseDir -Source $Source
     cp c:\k\kubernetes\node\bin\*.exe c:\k
 }
 
-function GetPlatformType()
-{
+function GetPlatformType() {
     # AKS
     $hnsNetwork = Get-HnsNetwork | ? Name -EQ azure
     if ($hnsNetwork.name -EQ "azure") {
@@ -100,9 +96,10 @@ function GetPlatformType()
     # EC2
     $restError = $null
     Try {
-        $token = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token-ttl-seconds" = "300"} -Method PUT -Uri http://169.254.169.254/latest/api/token -ErrorAction Ignore
-        $awsNodeName = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $token} -Method GET -Uri http://169.254.169.254/latest/meta-data/local-hostname -ErrorAction Ignore
-    } Catch {
+        $token = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token-ttl-seconds" = "300" } -Method PUT -Uri http://169.254.169.254/latest/api/token -ErrorAction Ignore
+        $awsNodeName = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $token } -Method GET -Uri http://169.254.169.254/latest/meta-data/local-hostname -ErrorAction Ignore
+    }
+    Catch {
         $restError = $_
     }
     if ($restError -eq $null) {
@@ -112,8 +109,9 @@ function GetPlatformType()
     # GCE
     $restError = $null
     Try {
-        $gceNodeName = Invoke-RestMethod -UseBasicParsing -Headers @{"Metadata-Flavor"="Google"} "http://metadata.google.internal/computeMetadata/v1/instance/hostname" -ErrorAction Ignore
-    } Catch {
+        $gceNodeName = Invoke-RestMethod -UseBasicParsing -Headers @{"Metadata-Flavor" = "Google" } "http://metadata.google.internal/computeMetadata/v1/instance/hostname" -ErrorAction Ignore
+    }
+    Catch {
         $restError = $_
     }
     if ($restError -eq $null) {
@@ -123,11 +121,10 @@ function GetPlatformType()
     return ("bare-metal")
 }
 
-function GetBackendType()
-{
+function GetBackendType() {
     param(
-        [parameter(Mandatory=$true)] $CalicoNamespace,
-        [parameter(Mandatory=$false)] $KubeConfigPath = "$RootDir\calico-kube-config"
+        [parameter(Mandatory = $true)] $CalicoNamespace,
+        [parameter(Mandatory = $false)] $KubeConfigPath = "$RootDir\calico-kube-config"
     )
 
     if (-Not [string]::IsNullOrEmpty($CalicoBackend)) {
@@ -158,38 +155,42 @@ function GetBackendType()
 
     # Auto detect backend type
     if ($Datastore -EQ "kubernetes") {
-        $encap=c:\k\kubectl.exe --kubeconfig="$KubeConfigPath" get felixconfigurations.crd.projectcalico.org default -o jsonpath='{.spec.ipipEnabled}'
+        $encap = c:\k\kubectl.exe --kubeconfig="$KubeConfigPath" get felixconfigurations.crd.projectcalico.org default -o jsonpath='{.spec.ipipEnabled}'
         if ($encap -EQ "true") {
             throw "Calico on Linux has IPIP enabled. IPIP is not supported on Windows nodes."
         }
 
         # Check FelixConfig first.
-        $encap=c:\k\kubectl.exe --kubeconfig="$KubeConfigPath" get felixconfigurations.crd.projectcalico.org default -o jsonpath='{.spec.vxlanEnabled}'
+        $encap = c:\k\kubectl.exe --kubeconfig="$KubeConfigPath" get felixconfigurations.crd.projectcalico.org default -o jsonpath='{.spec.vxlanEnabled}'
         if ($encap -EQ "true") {
             return ("vxlan")
-        } elseif ($encap -EQ "false") {
-            return ("bgp")
-        } else {
-           # If any IPPool has IPIP enabled, we need to exit the installer. The
-           # IPIP-enabled might not be assigned to this Windows node but we can't
-           # verify that easily by looking at the nodeSelector.
-           $ipipModes = c:\k\kubectl.exe --kubeconfig="$KubeConfigPath" get ippools.crd.projectcalico.org -o jsonpath='{.items[*].spec.ipipMode}'
-           $ipipEnabled = $ipipModes | Select-String -pattern '(Always)|(CrossSubnet)'
-           if ($ipipEnabled -NE $null) {
-               throw "Failed to auto detect backend type. IPIP is not supported on Windows nodes but found IP pools with IPIP enabled. Rerun install script with the CalicoBackend param provided"
-           }
-
-           # If FelixConfig does not have vxlanEnabled then check the IPPools and see if any of them have enabled vxlan.
-           $vxlanModes=c:\k\kubectl.exe --kubeconfig="$KubeConfigPath" get ippools.crd.projectcalico.org -o jsonpath='{.items[*].spec.vxlanMode}'
-           $vxlanEnabled = $vxlanModes | Select-String -pattern '(Always)|(CrossSubnet)'
-           if ($vxlanEnabled -NE $null) {
-               return ("vxlan")
-           } else {
-               return ("bgp")
-           }
         }
-    } else {
-        $CalicoBackend=c:\k\kubectl.exe --kubeconfig="$KubeConfigPath" get configmap calico-config -n $CalicoNamespace -o jsonpath='{.data.calico_backend}'
+        elseif ($encap -EQ "false") {
+            return ("bgp")
+        }
+        else {
+            # If any IPPool has IPIP enabled, we need to exit the installer. The
+            # IPIP-enabled might not be assigned to this Windows node but we can't
+            # verify that easily by looking at the nodeSelector.
+            $ipipModes = c:\k\kubectl.exe --kubeconfig="$KubeConfigPath" get ippools.crd.projectcalico.org -o jsonpath='{.items[*].spec.ipipMode}'
+            $ipipEnabled = $ipipModes | Select-String -pattern '(Always)|(CrossSubnet)'
+            if ($ipipEnabled -NE $null) {
+                throw "Failed to auto detect backend type. IPIP is not supported on Windows nodes but found IP pools with IPIP enabled. Rerun install script with the CalicoBackend param provided"
+            }
+
+            # If FelixConfig does not have vxlanEnabled then check the IPPools and see if any of them have enabled vxlan.
+            $vxlanModes = c:\k\kubectl.exe --kubeconfig="$KubeConfigPath" get ippools.crd.projectcalico.org -o jsonpath='{.items[*].spec.vxlanMode}'
+            $vxlanEnabled = $vxlanModes | Select-String -pattern '(Always)|(CrossSubnet)'
+            if ($vxlanEnabled -NE $null) {
+                return ("vxlan")
+            }
+            else {
+                return ("bgp")
+            }
+        }
+    }
+    else {
+        $CalicoBackend = c:\k\kubectl.exe --kubeconfig="$KubeConfigPath" get configmap calico-config -n $CalicoNamespace -o jsonpath='{.data.calico_backend}'
         if ($CalicoBackend -EQ "vxlan") {
             return ("vxlan")
         }
@@ -199,7 +200,7 @@ function GetBackendType()
 
 function GetCalicoNamespace() {
     param(
-      [parameter(Mandatory=$false)] $KubeConfigPath = "c:\\k\\config"
+        [parameter(Mandatory = $false)] $KubeConfigPath = "c:\\k\\config"
     )
 
     # If we are running inside a HostProcess container then return our
@@ -211,7 +212,7 @@ function GetCalicoNamespace() {
     }
 
     $ErrorActionPreference = 'Continue'
-    $name=c:\k\kubectl.exe --kubeconfig=$KubeConfigPath get ns calico-system
+    $name = c:\k\kubectl.exe --kubeconfig=$KubeConfigPath get ns calico-system
     $ErrorActionPreference = 'Stop'
     if ([string]::IsNullOrEmpty($name)) {
         write-host "Calico running in kube-system namespace"
@@ -221,16 +222,15 @@ function GetCalicoNamespace() {
     return ("calico-system")
 }
 
-function GetCalicoKubeConfig()
-{
+function GetCalicoKubeConfig() {
     param(
-      [parameter(Mandatory=$true)] $CalicoNamespace,
-      [parameter(Mandatory=$false)] $SecretNamePrefix = "calico-node",
-      [parameter(Mandatory=$false)] $KubeConfigPath = "c:\\k\\config"
+        [parameter(Mandatory = $true)] $CalicoNamespace,
+        [parameter(Mandatory = $false)] $SecretNamePrefix = "calico-node",
+        [parameter(Mandatory = $false)] $KubeConfigPath = "c:\\k\\config"
     )
 
     # On EKS, we need to have AWS tools loaded for kubectl authentication.
-    $eksAWSToolsModulePath="C:\Program Files (x86)\AWS Tools\PowerShell\AWSPowerShell\AWSPowerShell.psd1"
+    $eksAWSToolsModulePath = "C:\Program Files (x86)\AWS Tools\PowerShell\AWSPowerShell\AWSPowerShell.psd1"
     if (Test-Path $eksAWSToolsModulePath) {
         Write-Host "AWSPowerShell module exists, loading $eksAWSToolsModulePath ..."
         Import-Module $eksAWSToolsModulePath
@@ -254,50 +254,54 @@ function GetCalicoKubeConfig()
         if ($k8sHost -and $k8sPort) {
             $server = "server: https://{0}:{1}" -f $k8sHost, $k8sPort
             Write-Host "Using KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT env variables for kubeconfig. $server"
-        } elseif (Test-Path $KubeConfigPath) {
-            $server=(Get-ChildItem $KubeConfigPath | Select-String https).Line
+        }
+        elseif (Test-Path $KubeConfigPath) {
+            $server = (Get-ChildItem $KubeConfigPath | Select-String https).Line
             Write-Host ("Using existing kubeconfig at $KubeConfigPath for API server host and port. {0}" -f $server.Trim())
-        } else {
+        }
+        else {
             Write-Host "Cannot determine API server host and port. Add KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT to calico-windows-config in calico-system namespace"
             exit 1
         }
-    } else {
+    }
+    else {
         $ErrorActionPreference = 'Continue'
-        $secretName=c:\k\kubectl.exe --kubeconfig=$KubeConfigPath get secret -n $CalicoNamespace --field-selector=type=kubernetes.io/service-account-token --no-headers -o custom-columns=":metadata.name" | findstr $SecretNamePrefix | select -first 1
+        $secretName = c:\k\kubectl.exe --kubeconfig=$KubeConfigPath get secret -n $CalicoNamespace --field-selector=type=kubernetes.io/service-account-token --no-headers -o custom-columns=":metadata.name" | findstr $SecretNamePrefix | select -first 1
         $ErrorActionPreference = 'Stop'
         if ([string]::IsNullOrEmpty($secretName)) {
             if ($AutoCreateServiceAccountTokenSecret -EQ "yes") {
                 # Create the serviceaccount token secret.
                 $secretName = "calico-node-token"
                 CreateTokenAccountSecret -Name $secretName -Namespace $CalicoNamespace -KubeConfigPath $KubeConfigPath
-            } else {
+            }
+            else {
                 throw "$SecretName service account token secret does not exist."
             }
         }
         # CA from the k8s secret is already base64-encoded.
-        $ca=c:\k\kubectl.exe --kubeconfig=$KubeConfigPath get secret/$secretName -o jsonpath='{.data.ca\.crt}' -n $CalicoNamespace
+        $ca = c:\k\kubectl.exe --kubeconfig=$KubeConfigPath get secret/$secretName -o jsonpath='{.data.ca\.crt}' -n $CalicoNamespace
         # Token from the k8s secret is base64-encoded but we need the jwt token.
-        $tokenBase64=c:\k\kubectl.exe --kubeconfig=$KubeConfigPath get secret/$secretName -o jsonpath='{.data.token}' -n $CalicoNamespace
-        $token=[System.Text.Encoding]::ASCII.GetString([System.Convert]::FromBase64String($tokenBase64))
+        $tokenBase64 = c:\k\kubectl.exe --kubeconfig=$KubeConfigPath get secret/$secretName -o jsonpath='{.data.token}' -n $CalicoNamespace
+        $token = [System.Text.Encoding]::ASCII.GetString([System.Convert]::FromBase64String($tokenBase64))
 
-        $server=(Get-ChildItem $KubeConfigPath | Select-String https).Line
+        $server = (Get-ChildItem $KubeConfigPath | Select-String https).Line
     }
 
+    Write-Host "Generating kubeconfig '$RootDir\calico-kube-config' for Calico node from '$RootDir\calico-kube-config.template'"
     (Get-Content $RootDir\calico-kube-config.template).replace('<ca>', $ca).replace('<server>', $server.Trim()).replace('<token>', $token) | Set-Content $RootDir\calico-kube-config -Force
 }
 
-function CreateTokenAccountSecret()
-{
+function CreateTokenAccountSecret() {
     param(
-      [parameter(Mandatory=$true)] $Name,
-      [parameter(Mandatory=$true)] $Namespace,
-      [parameter(Mandatory=$false)] $KubeConfigPath = "c:\\k\\config"
+        [parameter(Mandatory = $true)] $Name,
+        [parameter(Mandatory = $true)] $Namespace,
+        [parameter(Mandatory = $false)] $KubeConfigPath = "c:\\k\\config"
     )
 
     $tempFile = New-TemporaryFile
     Write-Host "Created temp file ${tempFile}"
 
-    $yaml=@"
+    $yaml = @"
 apiVersion: v1
 kind: Secret
 metadata:
@@ -311,8 +315,7 @@ type: kubernetes.io/service-account-token
     c:\k\kubectl --kubeconfig $KubeConfigPath apply -f $tempFile.FullName
 }
 
-function EnableWinDsrForEKS()
-{
+function EnableWinDsrForEKS() {
     $OSInfo = (Get-ComputerInfo  | select WindowsVersion, OsBuildNumber)
     $supportsDSR = Get-IsDSRSupported
 
@@ -325,34 +328,34 @@ function EnableWinDsrForEKS()
     $Path = Get-CimInstance -Query 'select * from win32_service where name="kube-proxy"' | Select -ExpandProperty pathname
     if ($Path -like "*--enable-dsr=true*") {
         Write-Host "WinDsr is enabled by default."
-    } else {
+    }
+    else {
         $UpdatedPath = $Path + " --enable-dsr=true --feature-gates=WinDSR=true"
-        Get-CimInstance win32_service -filter 'Name="kube-proxy"' | Invoke-CimMethod -Name Change -Arguments @{PathName=$UpdatedPath}
+        Get-CimInstance win32_service -filter 'Name="kube-proxy"' | Invoke-CimMethod -Name Change -Arguments @{PathName = $UpdatedPath }
         Restart-Service -name "kube-proxy"
         Write-Host "WinDsr has been enabled for kube-proxy."
     }
 }
 
-function SetupEtcdTlsFiles()
-{
+function SetupEtcdTlsFiles() {
     param(
-      [parameter(Mandatory=$true)] $CalicoNamespace,
-      [parameter(Mandatory=$true)] $SecretName,
-      [parameter(Mandatory=$false)] $KubeConfigPath = "c:\\k\\config"
+        [parameter(Mandatory = $true)] $CalicoNamespace,
+        [parameter(Mandatory = $true)] $SecretName,
+        [parameter(Mandatory = $false)] $KubeConfigPath = "c:\\k\\config"
     )
 
     $path = "$RootDir\etcd-tls"
 
     $ErrorActionPreference = 'Continue'
-    $found=c:\k\kubectl.exe --kubeconfig=$KubeConfigPath get secret/$SecretName -n $CalicoNamespace
+    $found = c:\k\kubectl.exe --kubeconfig=$KubeConfigPath get secret/$SecretName -n $CalicoNamespace
     $ErrorActionPreference = 'Stop'
     if ([string]::IsNullOrEmpty($found)) {
         throw "$SecretName does not exist."
     }
 
-    $keyB64=c:\k\kubectl.exe --kubeconfig=$KubeConfigPath get secret/$SecretName -o jsonpath='{.data.etcd-key}' -n $CalicoNamespace
-    $certB64=c:\k\kubectl.exe --kubeconfig=$KubeConfigPath get secret/$SecretName -o jsonpath='{.data.etcd-cert}' -n $CalicoNamespace
-    $caB64=c:\k\kubectl.exe --kubeconfig=$KubeConfigPath get secret/$SecretName -o jsonpath='{.data.etcd-ca}' -n $CalicoNamespace
+    $keyB64 = c:\k\kubectl.exe --kubeconfig=$KubeConfigPath get secret/$SecretName -o jsonpath='{.data.etcd-key}' -n $CalicoNamespace
+    $certB64 = c:\k\kubectl.exe --kubeconfig=$KubeConfigPath get secret/$SecretName -o jsonpath='{.data.etcd-cert}' -n $CalicoNamespace
+    $caB64 = c:\k\kubectl.exe --kubeconfig=$KubeConfigPath get secret/$SecretName -o jsonpath='{.data.etcd-ca}' -n $CalicoNamespace
 
     New-Item -Type Directory -Path $path -Force
 
@@ -366,7 +369,7 @@ function SetupEtcdTlsFiles()
 }
 
 function SetAKSCalicoStaticRules {
-    $fileName  = [Io.path]::Combine("$RootDir", "static-rules.json")
+    $fileName = [Io.path]::Combine("$RootDir", "static-rules.json")
     echo '{
     "Provider": "AKS",
     "Rules": [
@@ -389,8 +392,7 @@ function SetAKSCalicoStaticRules {
 }' | Out-File -encoding ASCII -filepath $fileName
 }
 
-function InstallCalico()
-{
+function InstallCalico() {
     Write-Host "`nStart Calico for Windows install...`n"
 
     pushd
@@ -403,15 +405,17 @@ function InstallCalico()
 # kubectl errors are expected, so there are places where this is reset to "Continue" temporarily
 $ErrorActionPreference = "Stop"
 
-$BaseDir="c:\k"
-$RootDir="c:\CalicoWindows"
+$BaseDir = "c:\k"
+$RootDir = "c:\CalicoWindows"
 
 # If this script is run from a HostProcess container then the installation archive
 # will be in the mount point.
+Write-Host "`$env:CONTAINER_SANDBOX_MOUNT_POINT: '$env:CONTAINER_SANDBOX_MOUNT_POINT'"
 if ($env:CONTAINER_SANDBOX_MOUNT_POINT) {
-$CalicoZip="$env:CONTAINER_SANDBOX_MOUNT_POINT\calico-windows.zip"
-} else {
-$CalicoZip="c:\calico-windows.zip"
+    $CalicoZip = "$env:CONTAINER_SANDBOX_MOUNT_POINT\calico-windows.zip"
+}
+else {
+    $CalicoZip = "c:\calico-windows.zip"
 }
 Write-Host "Calico for Windows archive: $CalicoZip"
 
@@ -420,24 +424,21 @@ Write-Host "Calico for Windows archive: $CalicoZip"
 $helper = "$BaseDir\helper.psm1"
 $helperv2 = "$BaseDir\helper.v2.psm1"
 md $BaseDir -ErrorAction Ignore
-if (!(Test-Path $helper))
-{
+if (!(Test-Path $helper)) {
     Invoke-WebRequest https://raw.githubusercontent.com/Microsoft/SDN/master/Kubernetes/windows/helper.psm1 -O $BaseDir\helper.psm1
 }
-if (!(Test-Path $helperv2))
-{
+if (!(Test-Path $helperv2)) {
     Invoke-WebRequest https://raw.githubusercontent.com/Microsoft/SDN/master/Kubernetes/windows/helper.v2.psm1 -O $BaseDir\helper.v2.psm1
 }
 ipmo -force -DisableNameChecking $helper
 ipmo -force -DisableNameChecking $helperv2
 
-if (!(Test-Path $CalicoZip))
-{
+if (!(Test-Path $CalicoZip)) {
     Write-Host "$CalicoZip not found, downloading Calico for Windows release...`n`t'$ReleaseBaseURL/$ReleaseFile'"
     DownloadFile -Url $ReleaseBaseURL/$ReleaseFile -Destination c:\calico-windows.zip
 }
 
-$platform=GetPlatformType
+$platform = GetPlatformType
 
 if ((Get-Service -exclude 'CalicoUpgrade' | where Name -Like 'Calico*' | where Status -EQ Running) -NE $null) {
     Write-Host "Calico services are still running. In order to re-run the installation script, stop the CalicoNode and CalicoFelix services or uninstall them by running: $RootDir\uninstall-calico.ps1"
@@ -471,7 +472,7 @@ Set-ConfigParameters -var 'DNS_NAME_SERVERS' -value $DNSServerIPs
 
 if ($platform -EQ "aks") {
     Write-Host "Setup Calico for Windows for AKS..."
-    $Backend="none"
+    $Backend = "none"
     Set-ConfigParameters -var 'CALICO_NETWORKING_BACKEND' -value "none"
     Set-ConfigParameters -var 'KUBE_NETWORK' -value "azure.*"
 
@@ -483,8 +484,8 @@ if ($platform -EQ "aks") {
 if ($platform -EQ "eks") {
     EnableWinDsrForEKS
 
-    $token = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token-ttl-seconds" = "300"} -Method PUT -Uri http://169.254.169.254/latest/api/token -ErrorAction Ignore
-    $awsNodeName = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $token} -Method GET -Uri http://169.254.169.254/latest/meta-data/local-hostname -ErrorAction Ignore
+    $token = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token-ttl-seconds" = "300" } -Method PUT -Uri http://169.254.169.254/latest/api/token -ErrorAction Ignore
+    $awsNodeName = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $token } -Method GET -Uri http://169.254.169.254/latest/meta-data/local-hostname -ErrorAction Ignore
     Write-Host "Setup Calico for Windows for EKS, node name $awsNodeName ..."
     $Backend = "none"
 
@@ -496,8 +497,8 @@ if ($platform -EQ "eks") {
     GetCalicoKubeConfig -CalicoNamespace $calicoNs -KubeConfigPath C:\ProgramData\kubernetes\kubeconfig
 }
 if ($platform -EQ "ec2") {
-    $token = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token-ttl-seconds" = "300"} -Method PUT -Uri http://169.254.169.254/latest/api/token -ErrorAction Ignore
-    $awsNodeName = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $token} -Method GET -Uri http://169.254.169.254/latest/meta-data/local-hostname -ErrorAction Ignore
+    $token = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token-ttl-seconds" = "300" } -Method PUT -Uri http://169.254.169.254/latest/api/token -ErrorAction Ignore
+    $awsNodeName = Invoke-RestMethod -Headers @{"X-aws-ec2-metadata-token" = $token } -Method GET -Uri http://169.254.169.254/latest/meta-data/local-hostname -ErrorAction Ignore
     Write-Host "Setup Calico for Windows for AWS, node name $awsNodeName ..."
     Set-ConfigParameters -var 'NODENAME' -value $awsNodeName
 
@@ -511,7 +512,7 @@ if ($platform -EQ "ec2") {
     }
 }
 if ($platform -EQ "gce") {
-    $gceNodeName = Invoke-RestMethod -UseBasicParsing -Headers @{"Metadata-Flavor"="Google"} "http://metadata.google.internal/computeMetadata/v1/instance/hostname" -ErrorAction Ignore
+    $gceNodeName = Invoke-RestMethod -UseBasicParsing -Headers @{"Metadata-Flavor" = "Google" } "http://metadata.google.internal/computeMetadata/v1/instance/hostname" -ErrorAction Ignore
     Write-Host "Setup Calico for Windows for GCE, node name $gceNodeName ..."
     Set-ConfigParameters -var 'NODENAME' -value $gceNodeName
 
@@ -547,11 +548,49 @@ if ($StartCalico -EQ "yes") {
     Write-Host "This may take several seconds if the vSwitch needs to be created."
 
     Start-Service CalicoNode
+    Write-Host "Checking adapters after CalicoNode service started..."
+    $endpoints = Get-HnsEndpoint
+    Write-Host "Found $(($endpoints | Measure-Object).Count) HNS endpoints."
+    $endpoints | Format-List
+    Write-Output $endpoints
+
+    # Get all adapters created for containers when the pod is created
+    $adapters = Get-NetAdapter -IncludeHidden | Select-Object Name, InterfaceDescription, Status, ifIndex, InterfaceName, InterfaceType, InterfaceGuid, MacAddress, DeviceID, InterfaceAlias | Sort-Object InterfaceDescription, Name
+    Write-Host "Found $(($adapters | Measure-Object).Count) network adapters."
+    $adapters | Format-List
+    Write-Output $adapters
+
+    # Get the net interfaces
+    $interfaces = Get-NetIPInterface -AddressFamily IPv4 -IncludeAllCompartments | Sort-Object ifIndex | Select-Object ifIndex, InterfaceAlias, Dhcp, ConnectionState, InterfaceMetric, AutomaticMetric
+    Write-Host "Found $(($interfaces | Measure-Object).Count) network interfaces."
+    $interfaces | Format-List
+    Write-Output $interfaces
+
+    Write-Output (ipconfig /all)
+
     Wait-ForCalicoInit
     Start-Service CalicoFelix
+    Write-Host "Checking adapters after CalicoFelix service started..."
+    $endpoints = Get-HnsEndpoint
+    Write-Host "Found $(($endpoints | Measure-Object).Count) HNS endpoints."
+    $endpoints | Format-List
+    Write-Output $endpoints
 
-    if ($env:CALICO_NETWORKING_BACKEND -EQ "windows-bgp")
-    {
+    # Get all adapters created for containers when the pod is created
+    $adapters = Get-NetAdapter -IncludeHidden | Select-Object Name, InterfaceDescription, Status, ifIndex, InterfaceName, InterfaceType, InterfaceGuid, MacAddress, DeviceID, InterfaceAlias | Sort-Object InterfaceDescription, Name
+    Write-Host "Found $(($adapters | Measure-Object).Count) network adapters."
+    $adapters | Format-List
+    Write-Output $adapters
+
+    # Get the net interfaces
+    $interfaces = Get-NetIPInterface -AddressFamily IPv4 -IncludeAllCompartments | Sort-Object ifIndex | Select-Object ifIndex, InterfaceAlias, Dhcp, ConnectionState, InterfaceMetric, AutomaticMetric
+    Write-Host "Found $(($interfaces | Measure-Object).Count) network interfaces."
+    $interfaces | Format-List
+    Write-Output $interfaces
+
+    Write-Output (ipconfig /all)
+
+    if ($env:CALICO_NETWORKING_BACKEND -EQ "windows-bgp") {
         Start-Service CalicoConfd
     }
 
@@ -559,6 +598,26 @@ if ($StartCalico -EQ "yes") {
         Write-Host "Waiting for the Calico services to be running..."
         Start-Sleep 1
     }
+
+    Write-Host "Checking adapters after all Calico services started..."
+    $endpoints = Get-HnsEndpoint
+    Write-Host "Found $(($endpoints | Measure-Object).Count) HNS endpoints."
+    $endpoints | Format-List
+    Write-Output $endpoints
+
+    # Get all adapters created for containers when the pod is created
+    $adapters = Get-NetAdapter -IncludeHidden | Select-Object Name, InterfaceDescription, Status, ifIndex, InterfaceName, InterfaceType, InterfaceGuid, MacAddress, DeviceID, InterfaceAlias | Sort-Object InterfaceDescription, Name
+    Write-Host "Found $(($adapters | Measure-Object).Count) network adapters."
+    $adapters | Format-List
+    Write-Output $adapters
+
+    # Get the net interfaces
+    $interfaces = Get-NetIPInterface -AddressFamily IPv4 -IncludeAllCompartments | Sort-Object ifIndex | Select-Object ifIndex, InterfaceAlias, Dhcp, ConnectionState, InterfaceMetric, AutomaticMetric
+    Write-Host "Found $(($interfaces | Measure-Object).Count) network interfaces."
+    $interfaces | Format-List
+    Write-Output $interfaces
+
+    Write-Output (ipconfig /all)
 
     Write-Host "Done, the Calico services are running:"
     Get-Service | where Name -Like 'Calico*'

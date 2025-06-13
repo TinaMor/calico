@@ -18,32 +18,26 @@
 ipmo .\libs\calico\calico.psm1 -Force
 ipmo .\libs\hns\hns.psm1 -Force -DisableNameChecking
 
-function Get-TokenRefresherPid()
-{
+function Get-TokenRefresherPid() {
     return $(Get-WmiObject Win32_Process -Filter "name = 'calico-node.exe'" | Select-Object CommandLine, ProcessId | Where-Object -Property CommandLine -match ".*calico-node.exe.*-monitor-token.*").ProcessId
 }
 
-function Start-TokenRefresher()
-{
+function Start-TokenRefresher() {
     Write-Host "Starting Calico token refresher..."
     Start-Process -NoNewWindow .\calico-node.exe -ArgumentList "-monitor-token"
     Write-Host "Calico token refresher running on PID" $(Get-TokenRefresherPid)
 }
 
-function Ensure-TokenRefresher()
-{
-    if (-not $(Get-TokenRefresherPid))
-    {
+function Ensure-TokenRefresher() {
+    if (-not $(Get-TokenRefresherPid)) {
         Write-Host "Calico token refresher is not running, restarting it"
         Start-TokenRefresher
     }
 }
 
-function Restart-TokenRefresher()
-{
+function Restart-TokenRefresher() {
     $tokenRefresherPid = Get-TokenRefresherPid
-    if ($tokenRefresherPid)
-    {
+    if ($tokenRefresherPid) {
         Write-Host "Restarting Calico token refresher"
         Stop-Process -force -Id $tokenRefresherPid
     }
@@ -61,27 +55,24 @@ Write-Host "VXLAN adapter: $vxlanAdapter"
 # Autoconfigure the IPAM block mode.
 if ($env:CNI_IPAM_TYPE -EQ "host-local") {
     $env:USE_POD_CIDR = "true"
-} else {
+}
+else {
     $env:USE_POD_CIDR = "false"
 }
 
 $platform = Get-PlatformType
 
-if ($env:CALICO_NETWORKING_BACKEND -EQ "windows-bgp" -OR $env:CALICO_NETWORKING_BACKEND -EQ "vxlan")
-{
+if ($env:CALICO_NETWORKING_BACKEND -EQ "windows-bgp" -OR $env:CALICO_NETWORKING_BACKEND -EQ "vxlan") {
     Write-Host "Calico $env:CALICO_NETWORKING_BACKEND networking enabled."
 
     # Check if the node has been rebooted.  If so, the HNS networks will be in unknown state so we need to
     # clean them up and recreate them.
     $prevLastBootTime = Get-StoredLastBootTime
-    if ($prevLastBootTime -NE $lastBootTime)
-    {
-        if ((Get-HNSNetwork | ? Type -NE nat))
-        {
+    if ($prevLastBootTime -NE $lastBootTime) {
+        if ((Get-HNSNetwork | ? Type -NE nat)) {
             Write-Host "First time Calico has run since boot up, cleaning out any old network state."
             Get-HNSNetwork | ? Type -NE nat | Remove-HNSNetwork
-            do
-            {
+            do {
                 Write-Host "Waiting for network deletion to complete."
                 Start-Sleep 1
             } while ((Get-HNSNetwork | ? Type -NE nat))
@@ -90,24 +81,20 @@ if ($env:CALICO_NETWORKING_BACKEND -EQ "windows-bgp" -OR $env:CALICO_NETWORKING_
         # After deletion of all hns networks, wait for an interface to have an IP that is not a 169.254.0.0/16 (or 127.0.0.0/8) address,
         # before creation of External network.
         $isValidIP = $false
-        $IPRegEx1='(^127\.0\.0\.)'
-        $IPRegEx2='(^169\.254\.)'
-        while(!($isValidIP) -AND ($timeout -gt 0))
-        {
+        $IPRegEx1 = '(^127\.0\.0\.)'
+        $IPRegEx2 = '(^169\.254\.)'
+        while (!($isValidIP) -AND ($timeout -gt 0)) {
             $IPAddress = (Get-NetIPAddress -AddressFamily IPv4).IPAddress
             Write-Host "`nTimeout Remaining: $timeout sec"
             Write-Host "List of IP Address before initialising Calico: $IPAddress"
-            Foreach ($ip in $IPAddress)
-            {
-                if (($ip -NotMatch $IPRegEx1) -AND ($ip -NotMatch $IPRegEx2))
-                {
+            Foreach ($ip in $IPAddress) {
+                if (($ip -NotMatch $IPRegEx1) -AND ($ip -NotMatch $IPRegEx2)) {
                     $isValidIP = $true
                     Write-Host "`nFound valid IP: $ip"
                     break
                 }
             }
-            if (!($isValidIP))
-            {
+            if (!($isValidIP)) {
                 Start-Sleep -s 5
                 $timeout = $timeout - 5
             }
@@ -117,40 +104,47 @@ if ($env:CALICO_NETWORKING_BACKEND -EQ "windows-bgp" -OR $env:CALICO_NETWORKING_
     # Create a bridge to trigger a vSwitch creation. Do this only once
     Write-Host "`nStart creating vSwitch. Note: Connection may get lost for RDP, please reconnect...`n"
     $ExternalNet = Get-HNSNetwork | ? Name -EQ "External"
-    while (!($ExternalNet))
-    {
+    while (!($ExternalNet)) {
         if ($env:CALICO_NETWORKING_BACKEND -EQ "vxlan") {
             # FIXME Firewall rule port?
             Write-Host "Creating overlay network for VXLAN: '$vxlanAdapter'"
             New-NetFirewallRule -Name OverlayTraffic4789UDP -Description "Overlay network traffic UDP" -Action Allow -LocalPort 4789 -Enabled True -DisplayName "Overlay Traffic 4789 UDP" -Protocol UDP -ErrorAction SilentlyContinue
             $result = New-HNSNetwork -Type Overlay -AddressPrefix "192.168.255.0/30" -Gateway "192.168.255.1" -Name "External" -SubnetPolicies @(@{Type = "VSID"; VSID = 9999; }) -AdapterName $vxlanAdapter -Verbose
         }
-        else
-        {
+        else {
             $result = New-HNSNetwork -Type L2Bridge -AddressPrefix "192.168.255.0/30" -Gateway "192.168.255.1" -Name "External" -Verbose
         }
         if ($result.Error -OR (!$result.Success)) {
             Write-Host "Failed to create network, retrying..."
             Start-Sleep 1
-        } else {
+        }
+        else {
+            Write-Host "Successfully created network: $($result.Name)"
             break
         }
         $ExternalNet = Get-HNSNetwork | ? Name -EQ "External"
     }
 
     # Get all endpoints for Calico
+    Write-Host "Listing devices after vSwitch creation..."
     $endpoints = Get-HnsEndpoint
+    Write-Host "Found $(($endpoints | Measure-Object).Count) HNS endpoints."
     $endpoints | Format-List
+    Write-Output $endpoints
 
     # Get all adapters created for containers when the pod is created
     $adapters = Get-NetAdapter -IncludeHidden | Select-Object Name, InterfaceDescription, Status, ifIndex, InterfaceName, InterfaceType, InterfaceGuid, MacAddress, DeviceID, InterfaceAlias | Sort-Object InterfaceDescription, Name
+    Write-Host "Found $(($adapters | Measure-Object).Count) network adapters."
     $adapters | Format-List
+    Write-Output $adapters
 
     # Get the net interfaces
     $interfaces = Get-NetIPInterface -AddressFamily IPv4 -IncludeAllCompartments | Sort-Object ifIndex | Select-Object ifIndex, InterfaceAlias, Dhcp, ConnectionState, InterfaceMetric, AutomaticMetric
+    Write-Host "Found $(($interfaces | Measure-Object).Count) network interfaces."
     $interfaces | Format-List
+    Write-Output $interfaces
 
-    ipconfig /all
+    Write-Output (ipconfig /all)
 
     # Wait for the management IP to show up and then give an extra grace period for
     # the networking stack to settle down.
@@ -182,9 +176,9 @@ Write-Host "Stored new lastBootTime $Stored"
 # so try to remove it while it exists.
 #
 # Upgrade service is not needed if node is running in a hostprocess container.
+Write-Host "env:CONTAINER_SANDBOX_MOUNT_POINT: '$env:CONTAINER_SANDBOX_MOUNT_POINT'"
 if (-not $env:CONTAINER_SANDBOX_MOUNT_POINT) {
-    while (Get-UpgradeService)
-    {
+    while (Get-UpgradeService) {
 
         Remove-UpgradeService
         if ($LastExitCode -EQ 0) {
@@ -199,21 +193,16 @@ if (-not $env:CONTAINER_SANDBOX_MOUNT_POINT) {
 # Run the startup script whenever kubelet (re)starts. This makes sure that we refresh our Node annotations if
 # kubelet recreates the Node resource.
 $kubeletPid = -1
-while ($True)
-{
-    try
-    {
+while ($True) {
+    try {
         # Run calico-node.exe if kubelet starts/restarts
         $currentKubeletPid = (Get-Process -Name kubelet -ErrorAction Stop).id
-        if ($currentKubeletPid -NE $kubeletPid)
-        {
+        if ($currentKubeletPid -NE $kubeletPid) {
             Write-Host "Kubelet has (re)started, (re)initialising the node..."
             $kubeletPid = $currentKubeletPid
-            while ($true)
-            {
+            while ($true) {
                 .\calico-node.exe -startup
-                if ($LastExitCode -EQ 0)
-                {
+                if ($LastExitCode -EQ 0) {
                     Write-Host "Calico node initialisation succeeded; monitoring kubelet for restarts..."
                     # Token refresher only needs to run in hostprocess containers
                     if ($env:CONTAINER_SANDBOX_MOUNT_POINT) {
@@ -222,13 +211,33 @@ while ($True)
                     break
                 }
 
+                # List adapters and endpoints to help with debugging.
+                Write-Host "Listing devices after calico-node startup..."
+                $endpoints = Get-HnsEndpoint
+                Write-Host "Found $(($endpoints | Measure-Object).Count) HNS endpoints."
+                $endpoints | Format-List
+                Write-Output $endpoints
+
+                # Get all adapters created for containers when the pod is created
+                $adapters = Get-NetAdapter -IncludeHidden | Select-Object Name, InterfaceDescription, Status, ifIndex, InterfaceName, InterfaceType, InterfaceGuid, MacAddress, DeviceID, InterfaceAlias | Sort-Object InterfaceDescription, Name
+                Write-Host "Found $(($adapters | Measure-Object).Count) network adapters."
+                $adapters | Format-List
+                Write-Output $adapters
+
+                # Get the net interfaces
+                $interfaces = Get-NetIPInterface -AddressFamily IPv4 -IncludeAllCompartments | Sort-Object ifIndex | Select-Object ifIndex, InterfaceAlias, Dhcp, ConnectionState, InterfaceMetric, AutomaticMetric
+                Write-Host "Found $(($interfaces | Measure-Object).Count) network interfaces."
+                $interfaces | Format-List
+                Write-Output $interfaces
+
+                Write-Output (ipconfig /all)
+
                 Write-Host "Calico node initialisation failed, will retry..."
                 Start-Sleep 1
             }
         }
     }
-    catch
-    {
+    catch {
         Write-Host "Kubelet not running, waiting for Kubelet to start..."
         $kubeletPid = -1
     }
